@@ -194,8 +194,8 @@ if (supplyState === 'factoryReached') {
           <Text style={[styles.supplyUnit, { fontSize: 17 }]}>kg</Text>
         </View>
         <Text style={{ color: 'red', fontSize: 16, marginBottom: 8 }}>difference -0.5 kg</Text>
-        <Text style={{ fontWeight: 'bold', fontSize: 16, alignSelf: 'flex-start', marginBottom: 2 }}>Reason :</Text>
-        <Text style={{ fontSize: 16, alignSelf: 'flex-start', marginBottom: 16 }}>Water weight reduced by 0.5kg</Text>
+        <Text style={{ fontWeight: 'bold', fontSize: 16, alignSelf: 'center', marginBottom: 2 }}>Reason :</Text>
+        <Text style={{ fontSize: 16, alignSelf: 'center', marginBottom: 16 }}>Water weight reduced by 0.5kg</Text>
         <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#183d2b', width: 160, marginTop: 12 }]}>
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Inquire</Text>
         </TouchableOpacity>
@@ -628,7 +628,7 @@ driverModalSub: {
   color: '#222',
   fontSize: 15,
   marginBottom: 12,
-  alignSelf: 'flex-start',
+  alignSelf: 'center',
 },
 driverCard: {
   flexDirection: 'row',

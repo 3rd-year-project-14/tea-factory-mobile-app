@@ -6,42 +6,42 @@ const fertilizerTypes = [
   {
     id: 1,
     name: 'Urea',
-    image: require('../../../assets/images/fert1.jpg'),
+    image: require('../../../../assets/images/fert1.jpg'),
     price: 1000,
     unit: '50kg'
   },
   {
     id: 2,
     name: 'Ammonium sulfate',
-    image: require('../../../assets/images/fert2.jpg'),
+    image: require('../../../../assets/images/fert2.jpg'),
     price: 1200,
     unit: '50kg'
   },
   {
     id: 3,
     name: 'Urea',
-    image: require('../../../assets/images/fert1.jpg'),
+    image: require('../../../../assets/images/fert1.jpg'),
     price: 1000,
     unit: '50kg'
   },
   {
     id: 4,
     name: 'Ammonium sulfate',
-    image: require('../../../assets/images/fert2.jpg'),
+    image: require('../../../../assets/images/fert2.jpg'),
     price: 1200,
     unit: '50kg'
   },
   {
     id: 5,
     name: 'Urea',
-    image: require('../../../assets/images/fert1.jpg'),
+    image: require('../../../../assets/images/fert1.jpg'),
     price: 1000,
     unit: '50kg'
   },
   {
     id: 6,
     name: 'Ammonium sulfate',
-    image: require('../../../assets/images/fert2.jpg'),
+    image: require('../../../../assets/images/fert2.jpg'),
     price: 1200,
     unit: '50kg'
   },
