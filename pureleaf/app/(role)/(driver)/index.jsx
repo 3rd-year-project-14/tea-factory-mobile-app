@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, Image, Ima
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Pressable } from 'react-native';
 
 const reasons = [
   'Fever', 'Rain', 'No Leaves', 'Personal', 'Other'
@@ -225,8 +226,8 @@ export default function SupplierHome() {
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Are you collecting today?</Text>
             <View style={styles.modalBtnRow}>
               <TouchableOpacity style={styles.modalBtnYes} onPress={handleYesCollecting}>
@@ -236,8 +237,8 @@ export default function SupplierHome() {
                 <Text style={styles.modalBtnText}>No</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
       {/* Picker Modal: Reason for not collecting */}
       <Modal
