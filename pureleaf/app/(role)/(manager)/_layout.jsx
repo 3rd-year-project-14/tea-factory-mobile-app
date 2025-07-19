@@ -5,48 +5,50 @@ import { Ionicons } from '@expo/vector-icons';
 
 // --- Custom Tab Bar ---
 function CustomTabBar({ state, descriptors, navigation }) {
+  const tabRoutes = ['index', 'fertilizer'];
   return (
     <View style={styles.tabBar}>
-      {state.routes.map((route, index) => {
-        const { options } = descriptors[route.key];
-        const label =
-          options.tabBarLabel !== undefined
-            ? options.tabBarLabel
-            : options.title !== undefined
-            ? options.title
-            : route.name;
+      {state.routes
+        .filter(route => tabRoutes.includes(route.name))
+        .map((route, index) => {
+          const { options } = descriptors[route.key];
+          const label =
+            options.tabBarLabel !== undefined
+              ? options.tabBarLabel
+              : options.title !== undefined
+              ? options.title
+              : route.name;
 
-        const isFocused = state.index === index;
+          const isFocused = state.index === index;
 
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
 
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
 
-        // Choose your icons based on route name
-        let iconName = 'home';
-        if (route.name === 'fertilizer') iconName = 'leaf';
+          let iconName = 'home';
+          if (route.name === 'fertilizer') iconName = 'leaf';
 
-        return (
-          <TouchableOpacity
-            key={route.key}
-            accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
-            onPress={onPress}
-            style={styles.tab}
-          >
-            <Ionicons name={iconName} size={24} color={isFocused ? '#183d2b' : '#888'} />
-            <Text style={[styles.tabLabel, { color: isFocused ? '#183d2b' : '#888' }]}>{label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+          return (
+            <TouchableOpacity
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={isFocused ? { selected: true } : {}}
+              onPress={onPress}
+              style={styles.tab}
+            >
+              <Ionicons name={iconName} size={24} color={isFocused ? '#183d2b' : '#888'} />
+              <Text style={[styles.tabLabel, { color: isFocused ? '#183d2b' : '#888' }]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
     </View>
   );
 }

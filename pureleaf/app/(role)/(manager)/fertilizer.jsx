@@ -140,8 +140,7 @@ export default function FertilizerPage() {
             <TouchableOpacity
               style={styles.requestButton}
               onPress={() => {
-                setFertilizerState('placed'); // Simulate placing order
-                // router.push('/(role)/(nontabsmanager)/order');
+                router.push('/(role)/(manager)/(nontabs)/order');
               }}
             >
               <Text style={styles.requestButtonText}>Request Fertilizer</Text>

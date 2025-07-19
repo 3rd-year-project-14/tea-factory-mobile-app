@@ -15,6 +15,14 @@ export default function LoginScreen() {
     router.replace('/(role)/(driver)');
   };
 
+    const handleLogin1 = () => {
+    // Add your authentication logic here
+    // If successful: router.replace('/(tabs)');
+    // alert('Login pressed');
+    router.replace('/(role)/(driver)');
+  };
+
+
   return (
     <ImageBackground
       source={require('../assets/images/bg.jpg')} // Use your leaf background image
@@ -46,7 +54,10 @@ export default function LoginScreen() {
           placeholderTextColor="#888"
           secureTextEntry
         />
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
+        {/* <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
+          <Text style={styles.loginBtnText}>Login</Text>
+        </TouchableOpacity> */}
+        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin1}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity>
         <TouchableOpacity>
