@@ -597,7 +597,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
   alignItems: "center",
-  paddingBottom: 130, // You can adjust for padding at bottom
+  paddingBottom: 90, 
+ 
 },
 
 });
