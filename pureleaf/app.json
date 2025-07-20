@@ -23,7 +23,7 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-      "plugins": [
+    "plugins": [
       [
         "expo-splash-screen",
         {
@@ -36,7 +36,8 @@
             "backgroundColor": "#232323"
           }
         }
-      ]
+      ],
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true

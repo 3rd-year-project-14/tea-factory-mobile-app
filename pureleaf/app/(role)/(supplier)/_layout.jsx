@@ -33,6 +33,8 @@ function CustomTabBar({ state, descriptors, navigation }) {
         // Choose your icons based on route name
         let iconName = 'home';
         if (route.name === 'fertilizer') iconName = 'leaf';
+        if (route.name === 'wallet') iconName = 'wallet';
+
 
         return (
           <TouchableOpacity
@@ -98,6 +100,12 @@ export default function ManagerLayout() {
           options={{
             tabBarLabel: 'Fertilizer',
           }}
+        />
+        <Tabs.Screen
+        name="wallet"
+        options={{
+          tabBarLabel: 'Wallet',
+        }}
         />
       </Tabs>
     </View>
