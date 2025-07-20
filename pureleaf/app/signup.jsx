@@ -21,6 +21,8 @@ export default function SignupBasicForm() {
     phone: '',
     email: '', // ✅ Added missing email field
     address: '',
+    password:'',
+    confirmpw:'',
   });
 
   const router = useRouter();
@@ -96,6 +98,27 @@ export default function SignupBasicForm() {
                 placeholderTextColor="#888"
               />
 
+              <Text style={styles.label}>Password</Text>
+<TextInput
+  style={styles.input}
+  value={form.password}
+  onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
+  placeholder="Password"
+  placeholderTextColor="#888"
+  secureTextEntry={true}
+/>
+
+<Text style={styles.label}>Confirm Password</Text>
+<TextInput
+  style={styles.input}
+  value={form.confirmpw}
+  onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
+  placeholder="Confirm password"
+  placeholderTextColor="#888"
+  secureTextEntry={true}
+/>
+
+
               <TouchableOpacity
                 style={[
                   styles.nextBtn,
@@ -104,7 +127,7 @@ export default function SignupBasicForm() {
                 disabled={!allFieldsFilled}
                 onPress={() => router.push('/(role)/(pending)')}
               >
-                <Text style={styles.nextBtnText}>Next</Text>
+                <Text style={styles.nextBtnText}>Sign up</Text>
               </TouchableOpacity>
 
               <View style={styles.loginRow}>
