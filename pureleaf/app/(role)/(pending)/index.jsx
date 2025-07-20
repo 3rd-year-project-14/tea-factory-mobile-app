@@ -19,8 +19,8 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 
+// ----- FACTORIES DATA (UNCHANGED) -----
 const factories = [
   {
     label: 'Waulugala Tea factory',
@@ -77,6 +77,93 @@ const CARD_WIDTH = width * 0.75;
 const CARD_HEIGHT = 150;
 const totalSteps = 4;
 
+
+// ====== MAP PICKER OVERLAY - MOVED OUTSIDE ======
+const MapPickerOverlay = ({
+  showMap,
+  mapRegion,
+  setMapRegion,
+  mapRef,
+  tempMarker,
+  setTempMarker,
+  searchQuery,
+  setSearchQuery,
+  searchLocation,
+  setShowMap,
+  mapField,
+  setMapField,
+  setLandDetails,
+}) => {
+  if (!showMap) return null;
+  return (
+    <View style={styles.mapOverlay}>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search for a place..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={searchLocation}
+          placeholderTextColor="#888"
+        />
+        <TouchableOpacity style={styles.searchButton} onPress={searchLocation}>
+          <Text style={styles.searchButtonText}>🔍</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Map */}
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        ref={mapRef}
+        style={styles.smallMap}
+        region={mapRegion}
+        onPress={e => {
+          setTempMarker(e.nativeEvent.coordinate);
+          // Don't clear searchQuery here!
+        }}
+      >
+        {tempMarker && <Marker coordinate={tempMarker} />}
+      </MapView>
+
+      {/* Control Buttons */}
+      <View style={styles.mapControls}>
+        <TouchableOpacity
+          style={styles.confirmButton}
+          onPress={() => {
+            if (!tempMarker) return Alert.alert('Select a location', 'Tap on the map or search for a place to select a location.');
+            const url = `https://maps.google.com/?q=${tempMarker.latitude},${tempMarker.longitude}`;
+            setLandDetails(prev => ({
+              ...prev,
+              [mapField]: url,
+            }));
+            setTempMarker(null);
+            setSearchQuery('');
+            setShowMap(false);
+            setMapField(null);
+          }}
+        >
+          <Text style={styles.confirmButtonText}>Confirm Location</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => {
+            setShowMap(false);
+            setTempMarker(null);
+            setSearchQuery('');
+            setMapField(null);
+          }}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+
+// ====== MAIN COMPONENT ======
 export default function PendingSupplyOnboarding() {
   const [step, setStep] = useState(0);
   const [selectedFactory, setSelectedFactory] = useState(null);
@@ -114,7 +201,6 @@ export default function PendingSupplyOnboarding() {
   // Search for places using expo-location geocoding
   const searchLocation = async () => {
     if (!searchQuery.trim()) return;
-
     try {
       const result = await Location.geocodeAsync(searchQuery);
       if (result && result.length > 0) {
@@ -136,8 +222,6 @@ export default function PendingSupplyOnboarding() {
         if (mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 1000);
         }
-
-        
       } else {
         Alert.alert('Location not found', 'Please try a different search term');
       }
@@ -229,74 +313,6 @@ export default function PendingSupplyOnboarding() {
       setNicImage(result.assets[0]);
     }
   };
-
-  // Enhanced Map Picker with Search
-  const MapPickerOverlay = () =>
-    showMap && (
-      <View style={styles.mapOverlay}>
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search for a place..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={searchLocation}
-            placeholderTextColor="#888"
-          />
-          <TouchableOpacity style={styles.searchButton} onPress={searchLocation}>
-            <Text style={styles.searchButtonText}>🔍</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Map */}
-        <MapView
-          provider={PROVIDER_GOOGLE} // This ensures Google Maps on both iOS and Android
-          ref={mapRef}
-          style={styles.smallMap}
-          region={mapRegion}
-          onPress={e => {
-            setTempMarker(e.nativeEvent.coordinate);
-            setSearchQuery(''); // Clear search when manually selecting
-          }}
-        >
-          {tempMarker && <Marker coordinate={tempMarker} />}
-        </MapView>
-
-        {/* Control Buttons */}
-        <View style={styles.mapControls}>
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={() => {
-              if (!tempMarker) return Alert.alert('Select a location', 'Tap on the map or search for a place to select a location.');
-              const url = `https://maps.google.com/?q=${tempMarker.latitude},${tempMarker.longitude}`;
-              setLandDetails(prev => ({
-                ...prev,
-                [mapField]: url,
-              }));
-              setTempMarker(null);
-              setSearchQuery('');
-              setShowMap(false);
-              setMapField(null);
-            }}
-          >
-            <Text style={styles.confirmButtonText}>Confirm Location</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => {
-              setShowMap(false);
-              setTempMarker(null);
-              setSearchQuery('');
-              setMapField(null);
-            }}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
 
   function renderStep() {
     if (step === 0) {
@@ -474,7 +490,22 @@ export default function PendingSupplyOnboarding() {
                 />
               ))}
             </View>
-            <MapPickerOverlay />
+            {/* ---- MOVED: THE OVERLAY IS CALLED HERE AS A PROP-PASSED COMPONENT ---- */}
+            <MapPickerOverlay
+              showMap={showMap}
+              mapRegion={mapRegion}
+              setMapRegion={setMapRegion}
+              mapRef={mapRef}
+              tempMarker={tempMarker}
+              setTempMarker={setTempMarker}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              searchLocation={searchLocation}
+              setShowMap={setShowMap}
+              mapField={mapField}
+              setMapField={setMapField}
+              setLandDetails={setLandDetails}
+            />
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -482,6 +513,7 @@ export default function PendingSupplyOnboarding() {
   );
 }
 
+// ------- THE STYLES (UNCHANGED) -------
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: '#eaf2ea' },
   safeArea: { flex: 1, alignItems: 'center' },
@@ -701,7 +733,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  // New styles for map picker with search
   mapOverlay: {
     position: 'absolute',
     top: 0,
@@ -741,13 +772,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   mapControls: {
-  marginTop: 18,
-  paddingHorizontal: 20,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  gap: 10,
-},
-
+    marginTop: 18,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   confirmButton: {
     backgroundColor: '#175032',
     borderRadius: 12,
