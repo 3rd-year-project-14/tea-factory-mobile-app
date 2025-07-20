@@ -12,14 +12,14 @@ export default function LoginScreen() {
     // Add your authentication logic here
     // If successful: router.replace('/(tabs)');
     // alert('Login pressed');
-    router.replace('/(role)/(driver)');
+    router.replace('/(role)/(supplier)');
   };
 
     const handleLogin1 = () => {
     // Add your authentication logic here
     // If successful: router.replace('/(tabs)');
     // alert('Login pressed');
-    router.replace('/(role)/(driver)');
+    router.replace('/(role)/(supplier)');
   };
 
 
