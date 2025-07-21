@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+
   advancePopup: {
   width: 310,
   backgroundColor: "#fff",
@@ -800,6 +801,11 @@ advanceRequestBtnText: {
   color: "#fff",
   fontWeight: "700",
   fontSize: 16,
+
+  scrollContent: {
+  alignItems: "center",
+  paddingBottom: 90, 
+
 },
 
 });

@@ -19,9 +19,14 @@ export default function LoginScreen() {
     // Add your authentication logic here
     // If successful: router.replace('/(tabs)');
     // alert('Login pressed');
-    router.replace('/(role)/(supplier)');
+    router.replace('/(role)/(driver)');
   };
-
+  const handleLogin2 = () => {
+    // Add your authentication logic here
+    // If successful: router.replace('/(tabs)');
+    // alert('Login pressed');
+    router.replace('/(role)/(inhouse)');
+  };
 
   return (
     <ImageBackground
