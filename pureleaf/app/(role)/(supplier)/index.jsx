@@ -1,78 +1,87 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, TouchableWithoutFeedback, Keyboard, ImageBackground, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  TextInput,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ImageBackground,
+  ScrollView,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+
 import RBSheet from 'react-native-raw-bottom-sheet';
-import { Ionicons } from '@expo/vector-icons';
+// import { Ionicons } from '@expo/vector-icons'; // Only import if used
 
-export default function SupplierHome() {
+export default function SupplierHome({ navigation }) {
   const sheetRef = useRef();
-  const simSheetRef = useRef(); // <-- New ref for simulation sheet
-  
-  const [supplyState, setSupplyState] = useState('none'); // 'none', 'input', 'placed', 'driver', 'factory'
+  const simSheetRef = useRef();
+  const router = useRouter();
 
+
+  const [supplyState, setSupplyState] = useState('none'); // 'none', 'input', 'placed', 'driver', 'factory', 'factoryReached'
   const [bagCount, setBagCount] = useState('');
   const [lastBagCount, setLastBagCount] = useState(null);
 
-  // Simulation page state
   const [simPage, setSimPage] = useState(1);
 
-  // Open the modal for entering supply
+  // Handlers
   const openSupplyModal = () => {
     setSupplyState('input');
     setBagCount('');
-    sheetRef.current.open();
+    sheetRef.current?.open();
   };
 
-  // When confirming supply
   const handleConfirm = () => {
     setLastBagCount(bagCount);
     setSupplyState('placed');
-    sheetRef.current.close();
+    sheetRef.current?.close();
   };
 
-  // When editing supply
   const handleEdit = () => {
     setSupplyState('input');
     setBagCount(lastBagCount || '');
-    sheetRef.current.open();
+    sheetRef.current?.open();
   };
 
-  // When cancelling supply
   const handleCancel = () => {
     setLastBagCount(null);
     setSupplyState('none');
-    sheetRef.current.close();
+    sheetRef.current?.close();
   };
 
   // Modal Content
   const renderModalContent = () => {
     if (supplyState === 'input') {
       return (
-         
         <ScrollView
-    contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
-    showsVerticalScrollIndicator={true}
-  >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.sheetContent}>
-            <Text style={styles.supplyCardLabel}>Today's Supply :</Text>
-            <Text style={styles.supplyCardDate1}>Enter your Bag count</Text>
-            <TextInput
-              style={styles.sheetInput}
-              placeholder="eg: 10"
-              keyboardType="number-pad"
-              value={bagCount}
-              onChangeText={setBagCount}
-              placeholderTextColor="#888"
-            />
-            <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: bagCount ? '#183d2b' : '#bbb' }]}
-              disabled={!bagCount}
-              onPress={handleConfirm}
-            >
-              <Text style={styles.sheetBtnText}>Confirm</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableWithoutFeedback>
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
+          showsVerticalScrollIndicator={true}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.sheetContent}>
+              <Text style={styles.supplyCardLabel}>Today's Supply :</Text>
+              <Text style={styles.supplyCardDate1}>Enter your Bag count</Text>
+              <TextInput
+                style={styles.sheetInput}
+                placeholder="eg: 10"
+                keyboardType="number-pad"
+                value={bagCount}
+                onChangeText={setBagCount}
+                placeholderTextColor="#888"
+              />
+              <TouchableOpacity
+                style={[styles.sheetBtn, { backgroundColor: bagCount ? '#183d2b' : '#bbb' }]}
+                disabled={!bagCount}
+                onPress={handleConfirm}
+              >
+                <Text style={styles.sheetBtnText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
         </ScrollView>
       );
     }
@@ -81,284 +90,284 @@ export default function SupplierHome() {
         <View style={styles.sheetContent}>
           <Text style={styles.reqCardLabel}>Today's Supply :</Text>
           <Text style={styles.reqCardDate}>Request Placed</Text>
-          <Text style={styles.sheetTitle}>{lastBagCount} <Text style={styles.supplyUnit}>bags</Text></Text>
+          <Text style={styles.sheetTitle}>
+            {lastBagCount} <Text style={styles.supplyUnit}>bags</Text>
+          </Text>
           <View style={{ flexDirection: 'row', marginTop: 16 }}>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]} onPress={handleEdit}>
+            <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
+              onPress={handleEdit}
+            >
               <Text style={styles.sheetBtnText}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#590804' }]} onPress={handleCancel}>
+            <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: '#590804' }]}
+              onPress={handleCancel}
+            >
               <Text style={styles.sheetBtnText}>Cancel</Text>
             </TouchableOpacity>
-            
           </View>
           <TouchableOpacity
-  style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
-  onPress={() => {
-    setSupplyState('driver');
-    sheetRef.current.close();
-  }}
->
-  <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
-</TouchableOpacity>
+            style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
+            onPress={() => {
+              setSupplyState('driver');
+              sheetRef.current?.close();
+            }}
+          >
+            <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
+          </TouchableOpacity>
         </View>
       );
     }
-
     if (supplyState === 'driver') {
-  return (
-    <ScrollView
-      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
-      showsVerticalScrollIndicator={true}
-    >
-      <View style={styles.driverModal}>
-        <Text style={styles.reqCardLabel}>Today's Supply :</Text>
-        <Text style={styles.sheetTitle}>{lastBagCount} <Text style={styles.supplyUnit}>bags</Text></Text>
-        <Text style={styles.driverModalSub}>Get your leaves ready!</Text>
-        {/* Example driver info, adjust as needed */}
-        <View style={styles.driverCard}>
-          <Image
-            source={require('../../../assets/images/driver.jpg')}
-            style={styles.driverImg}
-          />
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={styles.driverName}>Saman</Text>
-            <Text style={styles.driverStatus}>is on the way</Text>
-            <Text style={styles.driverVehicle}>Vehicle : <Text style={{ fontWeight: 'bold' }}>LN 2535</Text></Text>
-            <Text style={styles.driverModel}>Isuzu NKR66E</Text>
-          </View>
-        </View>
-        <Text style={styles.pickupLabel}>Pick Up at <Text style={styles.pickupTime}>5:45PM</Text></Text>
-        <TouchableOpacity style={styles.callBtn}>
-          <Text style={styles.callBtnText}>Call</Text>
-        </TouchableOpacity>
-        {/* Simulation Button */}
-        <TouchableOpacity
-  style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
-  onPress={() => {
-    setSupplyState('factory');
-    sheetRef.current.close();
-  }}
->
-  <Text style={styles.sheetBtnText1}>Simulate On The Way To Factory</Text>
-</TouchableOpacity>
-
-      </View>
-    </ScrollView>
-  );
-}
-if (supplyState === 'factory') {
-  return (
-    <ScrollView
-      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
-      showsVerticalScrollIndicator={true}
-    >
-      <View style={styles.sheetContent}>
-          <Text style={styles.reqCardLabel}>Today's Supply :</Text>
-          <Text style={styles.reqCardDate}>One the way to the factory</Text>
-          <Text style={styles.sheetTitle}>{lastBagCount} <Text style={styles.supplyUnit}>bags</Text></Text>
-
-          <Text style={styles.reqCardLabel}>Tentative Weight :</Text>
-          <Text style={styles.sheetTitle}>53.4 <Text style={styles.supplyUnit}>kg</Text></Text>
-
-          <View style={{ flexDirection: 'row', marginTop: 16 }}>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]} onPress={handleEdit}>
-              <Text style={styles.sheetBtnText}>Inquire</Text>
+      return (
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.driverModal}>
+            <Text style={styles.reqCardLabel}>Today's Supply :</Text>
+            <Text style={styles.sheetTitle}>
+              {lastBagCount} <Text style={styles.supplyUnit}>bags</Text>
+            </Text>
+            <Text style={styles.driverModalSub}>Get your leaves ready!</Text>
+            <View style={styles.driverCard}>
+              <Image
+                source={require('../../../assets/images/driver.jpg')}
+                style={styles.driverImg}
+              />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={styles.driverName}>Saman</Text>
+                <Text style={styles.driverStatus}>is on the way</Text>
+                <Text style={styles.driverVehicle}>Vehicle : <Text style={{ fontWeight: 'bold' }}>LN 2535</Text></Text>
+                <Text style={styles.driverModel}>Isuzu NKR66E</Text>
+              </View>
+            </View>
+            <Text style={styles.pickupLabel}>Pick Up at <Text style={styles.pickupTime}>5:45PM</Text></Text>
+            <TouchableOpacity style={styles.callBtn}>
+              <Text style={styles.callBtnText}>Call</Text>
             </TouchableOpacity>
-            
-
-            
+            <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
+              onPress={() => {
+                setSupplyState('factory');
+                sheetRef.current?.close();
+              }}
+            >
+              <Text style={styles.sheetBtnText1}>Simulate On The Way To Factory</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-  style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
-  onPress={() => {
-    setSupplyState('factoryReached');
-    sheetRef.current.close();
-  }}
->
-  <Text style={styles.sheetBtnText1}>Simulate Reached Factory</Text>
-</TouchableOpacity>
-        </View>
-    </ScrollView>
-  );
-}
-if (supplyState === 'factoryReached') {
-  return (
-    <ScrollView
-      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
-      showsVerticalScrollIndicator={true}
-    >
-      <View style={styles.driverModal}>
-        <Text style={styles.reqCardLabel}>Today's Supply :</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={styles.sheetTitle}>52.9</Text>
-          <Text style={[styles.supplyUnit, { fontSize: 17 }]}>kg</Text>
-        </View>
-        <Text style={{ color: 'red', fontSize: 16, marginBottom: 8 }}>difference -0.5 kg</Text>
-        <Text style={{ fontWeight: 'bold', fontSize: 16, alignSelf: 'flex-start', marginBottom: 2 }}>Reason :</Text>
-        <Text style={{ fontSize: 16, alignSelf: 'flex-start', marginBottom: 16 }}>Water weight reduced by 0.5kg</Text>
-        <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#183d2b', width: 160, marginTop: 12 }]}>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Inquire</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
-}
-
+        </ScrollView>
+      );
+    }
+    if (supplyState === 'factory') {
+      return (
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.sheetContent}>
+            <Text style={styles.reqCardLabel}>Today's Supply :</Text>
+            <Text style={styles.reqCardDate}>On the way to the factory</Text>
+            <Text style={styles.sheetTitle}>
+              {lastBagCount} <Text style={styles.supplyUnit}>bags</Text>
+            </Text>
+            <Text style={styles.reqCardLabel}>Tentative Weight :</Text>
+            <Text style={styles.sheetTitle}>53.4 <Text style={styles.supplyUnit}>kg</Text></Text>
+            <View style={{ flexDirection: 'row', marginTop: 16 }}>
+              <TouchableOpacity
+                style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
+                onPress={handleEdit}
+              >
+                <Text style={styles.sheetBtnText}>Inquire</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
+              onPress={() => {
+                setSupplyState('factoryReached');
+                sheetRef.current?.close();
+              }}
+            >
+              <Text style={styles.sheetBtnText1}>Simulate Reached Factory</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
+    if (supplyState === 'factoryReached') {
+      return (
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.driverModal}>
+            <Text style={styles.reqCardLabel}>Today's Supply :</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.sheetTitle}>52.9</Text>
+              <Text style={[styles.supplyUnit, { fontSize: 17 }]}>kg</Text>
+            </View>
+            <Text style={{ color: 'red', fontSize: 16, marginBottom: 8 }}>difference -0.5 kg</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 16, alignSelf: 'flex-start', marginBottom: 2 }}>Reason :</Text>
+            <Text style={{ fontSize: 16, alignSelf: 'flex-start', marginBottom: 16 }}>Water weight reduced by 0.5kg</Text>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#183d2b', width: 160, marginTop: 12 }]}>
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Inquire</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
     return null;
   };
 
-  // Show the "Request Placed" card when supply is placed
-  
-  const showRequestPlacedCard = (['placed', 'driver', 'factory','factoryReached'].includes(supplyState)) && lastBagCount;
-
+  const showRequestPlacedCard = (
+    ['placed', 'driver', 'factory', 'factoryReached'].includes(supplyState) && lastBagCount
+  );
 
   // Simulation Sheet Content
   const renderSimulationSheet = () => (
-  <ScrollView
-    contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
-    showsVerticalScrollIndicator={false}
-  >
-    {simPage === 1 ? (
-      <>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>This month's Supply</Text>
-        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#183d2b' }}>1000.5 kg</Text>
-        <Text style={{ fontSize: 18, marginTop: 20 }}>Wallet</Text>
-        <Text style={{ fontSize: 28, color: '#165E52', fontWeight: 'bold' }}>Rs 50,000.00</Text>
-        <Text style={{ fontSize: 18, marginTop: 24 }}>Today's Supply: <Text style={{ fontWeight: 'bold' }}>53.4 kg</Text></Text>
-        <TouchableOpacity
-          style={{ backgroundColor: '#183d2b', borderRadius: 30, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 24, width: 180 }}
-          onPress={() => setSimPage(2)}
-        >
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Show Bag Details</Text>
-        </TouchableOpacity>
-      </>
-    ) : (
-      <>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Today's Supply</Text>
-        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#183d2b' }}>{lastBagCount || 11} bags</Text>
-        <Text style={{ fontSize: 18, marginTop: 10 }}>Tentative Weight:</Text>
-        <Text style={{ fontSize: 28, color: '#165E52', fontWeight: 'bold' }}>53.4 kg</Text>
-        <TouchableOpacity
-          style={{ backgroundColor: '#183d2b', borderRadius: 30, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 24, width: 180 }}
-          onPress={() => setSimPage(1)}
-        >
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Back to Summary</Text>
-        </TouchableOpacity>
-      </>
-    )}
-  </ScrollView>
-);
+    <ScrollView
+      contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {simPage === 1 ? (
+        <>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>This month's Supply</Text>
+          <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#183d2b' }}>1000.5 kg</Text>
+          <Text style={{ fontSize: 18, marginTop: 20 }}>Wallet</Text>
+          <Text style={{ fontSize: 28, color: '#165E52', fontWeight: 'bold' }}>Rs 50,000.00</Text>
+          <Text style={{ fontSize: 18, marginTop: 24 }}>
+            Today's Supply: <Text style={{ fontWeight: 'bold' }}>53.4 kg</Text>
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#183d2b', borderRadius: 30, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 24, width: 180 }}
+            onPress={() => setSimPage(2)}
+          >
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Show Bag Details</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Today's Supply</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#183d2b' }}>{lastBagCount || 11} bags</Text>
+          <Text style={{ fontSize: 18, marginTop: 10 }}>Tentative Weight:</Text>
+          <Text style={{ fontSize: 28, color: '#165E52', fontWeight: 'bold' }}>53.4 kg</Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#183d2b', borderRadius: 30, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 24, width: 180 }}
+            onPress={() => setSimPage(1)}
+          >
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Back to Summary</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </ScrollView>
+  );
 
   return (
     <View style={styles.container}>
-        <ScrollView
+      <ScrollView
         contentContainerStyle={{ paddingBottom: 80 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-       
-      {/* Hero with overlayed greeting */}
-      <View style={styles.heroCard}>
-        <ImageBackground
-          source={require('../../../assets/images/hero.jpg')}
-          style={styles.heroImg}
-          imageStyle={{ borderRadius: 16 }}
-        >
-          <Text style={styles.hello}>Hi Shehan!</Text>
-        </ImageBackground>
-      </View>
 
-      {/* Collect your Cash Card */}
-      <View style={styles.cashCard}>
-        <View>
-          <Text style={styles.cashCardLabel}>Collect your Cash</Text>
-          <Text style={styles.cashCardDate}>Date : 25/06/25</Text>
+        {/* Hero with overlayed greeting */}
+        <View style={styles.heroCard}>
+          <ImageBackground
+            source={require('../../../assets/images/hero.jpg')}
+            style={styles.heroImg}
+            imageStyle={{ borderRadius: 16 }}
+          >
+            <Text style={styles.hello}>Hi Shehan!</Text>
+          </ImageBackground>
         </View>
-        <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
-      </View>
 
-      {/* This month's Supply Card */}
-      <View style={styles.supplyCard}>
-        <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
-        <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
-        <Text style={styles.supplyCardValue}>1000.5 <Text style={styles.supplyCardUnit}>kg</Text></Text>
-      </View>
+        {/* Collect your Cash Card */}
+        <View style={styles.cashCard}>
+          <View>
+            <Text style={styles.cashCardLabel}>Collect your Cash</Text>
+            <Text style={styles.cashCardDate}>Date : 25/06/25</Text>
+          </View>
+          <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
+        </View>
 
-      {/* Wallet Card */}
-      <View style={styles.supplyCard}>
-        <Text style={styles.supplyCardLabel}>Wallet</Text>
-        <Text style={styles.walletCardValue}>Rs <Text style={styles.walletCardValueNum}>50,000.00</Text></Text>
-      </View>
+        {/* This month's Supply Card */}
+        <View style={styles.supplyCard}>
+          <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
+          <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
+          <Text style={styles.supplyCardValue}>
+            1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
+          </Text>
+        </View>
 
-      {/* Supply Button (hide after confirming) */}
-       {(supplyState === 'none') &&(
-       
-        <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
-          <Text style={styles.supplyBtnText}>Supply</Text>
+        {/* Wallet Card */}
+       <TouchableOpacity onPress={() => router.push('/wallet')}>
+
+          <View style={styles.supplyCard}>
+            <Text style={styles.supplyCardLabel}>Wallet</Text>
+            <Text style={styles.walletCardValue}>
+              Rs <Text style={styles.walletCardValueNum}>50,000.00</Text>
+            </Text>
+          </View>
         </TouchableOpacity>
-      )}
 
-      {/* Request Placed Card */}
-      {showRequestPlacedCard && (
-        <TouchableOpacity
-          style={styles.requestPlacedCard}
-          onPress={() => {
-            // Open the modal in "placed" state for edit/cancel
-            sheetRef.current.open();
-          }}
-        >
-          <Text style={styles.reqCardLabel}>Today's Supply :</Text>
-         <Text
-  style={[
-    styles.reqCardDate,
-    supplyState === 'factoryReached' ? { color: 'red' } : null
-  ]}
->
-  {supplyState === 'factoryReached'
-    ? 'difference -0.5 kg'
-    : supplyState === 'factory'
-      ? 'on the way to the factory'
-      : supplyState === 'driver'
-        ? 'Driver on the way, get your leaves ready'
-        : 'Request Placed'}
-</Text>
+        {/* Supply Button (hide after confirming) */}
+        {(supplyState === 'none') && (
+          <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
+            <Text style={styles.supplyBtnText}>Supply</Text>
+          </TouchableOpacity>
+        )}
 
+        {/* Request Placed Card */}
+        {showRequestPlacedCard && (
+          <TouchableOpacity
+            style={styles.requestPlacedCard}
+            onPress={() => { sheetRef.current?.open(); }}>
+            <Text style={styles.reqCardLabel}>Today's Supply :</Text>
+            <Text style={[
+              styles.reqCardDate,
+              supplyState === 'factoryReached' ? { color: 'red' } : null
+            ]}>
+              {supplyState === 'factoryReached'
+                ? 'difference -0.5 kg'
+                : supplyState === 'factory'
+                  ? 'on the way to the factory'
+                  : supplyState === 'driver'
+                    ? 'Driver on the way, get your leaves ready'
+                    : 'Request Placed'}
+            </Text>
+            <Text style={styles.reqCardValue}>
+              {supplyState === 'factoryReached'
+                ? '52.9'
+                : supplyState === 'factory'
+                  ? '53.4'
+                  : lastBagCount}
+              <Text style={styles.supplyCardUnit}>
+                {supplyState === 'factoryReached' || supplyState === 'factory' ? 'kg' : 'bags'}
+              </Text>
+            </Text>
+            {supplyState === 'placed' && (
+              <Text style={styles.requestPlacedEdit}>Tap to Edit or Cancel</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
+      </ScrollView>
 
-          <Text style={styles.reqCardValue}>
-  {supplyState === 'factoryReached'
-    ? '52.9'
-    : supplyState === 'factory'
-      ? '53.4'
-      : lastBagCount}
-  <Text style={styles.supplyCardUnit}>{supplyState === 'factoryReached' || supplyState === 'factory' ? 'kg' : 'bags'}</Text>
-</Text>
-
- {supplyState === 'placed' && (
-  <Text style={styles.requestPlacedEdit}>Tap to Edit or Cancel</Text>
-)}
-        </TouchableOpacity>
-      )}
-</ScrollView>
       {/* Bottom Sheet Modal */}
       <RBSheet
-  ref={sheetRef}
-//   onClose={() => {
-//   if (supplyState === 'input' && !lastBagCount) {
-//     setSupplyState('none');
-//   }
-// }}
-  closeOnDragDown={true}
-  closeOnPressMask={true}
-  customStyles={{
-    wrapper: { backgroundColor: 'rgba(0,0,0,0.4)' },
-    draggableIcon: { backgroundColor: '#bbb' },
-    container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  }}
-  height={340}
->
-  {renderModalContent()}
-</RBSheet>
+        ref={sheetRef}
+        closeOnDragDown={true}
+        closeOnPressMask={true}
+        customStyles={{
+          wrapper: { backgroundColor: 'rgba(0,0,0,0.4)' },
+          draggableIcon: { backgroundColor: '#bbb' },
+          container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+        }}
+        height={340}
+      >
+        {renderModalContent()}
+      </RBSheet>
 
       {/* Simulation Bottom Sheet */}
       <RBSheet
@@ -374,10 +383,12 @@ if (supplyState === 'factoryReached') {
       >
         {renderSimulationSheet()}
       </RBSheet>
-
     </View>
   );
 }
+
+// ...Use the same styles as you provided (unchanged)
+
 
 // ...styles unchanged (your existing styles)
 

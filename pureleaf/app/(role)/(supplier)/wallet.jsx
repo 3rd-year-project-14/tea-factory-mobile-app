@@ -12,12 +12,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-    ScrollView,
+  ScrollView,
 } from "react-native";
+
 import { Ionicons } from "@expo/vector-icons";
 import SlideToConfirm from "rn-slide-to-confirm";
 
-// Mock payment data (use your real data in production)
 const mockPayments = [
   { id: "001", date: "01/06/25", amount: 10000, status: "Pending", description: "Payment pending approval" },
   { id: "002", date: "02/06/25", amount: 12000, status: "Success", description: "Paid to supplier" },
@@ -27,16 +27,22 @@ const mockPayments = [
 const statusSort = { Pending: 0, Success: 1 };
 
 export default function WalletPage() {
-  // State
+  // 👇 All necessary state hooks are defined properly INSIDE the component now
+
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceAmount, setAdvanceAmount] = useState("");
+  const [advanceType, setAdvanceType] = useState("");
+  const [advanceError, setAdvanceError] = useState("");
+  const [advanceCards, setAdvanceCards] = useState([]);
+
   const [showHistory, setShowHistory] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentType, setPaymentType] = useState("Cash");
   const [showSelector, setShowSelector] = useState(false);
-
-  // For collect card slide to confirm delivery
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [slideConfirmed, setSlideConfirmed] = useState(false);
+  const [showLoanDetails, setShowLoanDetails] = useState(false);
 
   const filteredPayments = useMemo(() => {
     return mockPayments
@@ -50,8 +56,7 @@ export default function WalletPage() {
         );
       })
       .sort((a, b) => {
-        if (statusSort[a.status] !== statusSort[b.status])
-          return statusSort[a.status] - statusSort[b.status];
+        if (statusSort[a.status] !== statusSort[b.status]) return statusSort[a.status] - statusSort[b.status];
         if (a.date !== b.date) return b.date.localeCompare(a.date);
         return b.id.localeCompare(a.id);
       });
@@ -62,66 +67,157 @@ export default function WalletPage() {
   return (
     <>
       <SafeAreaView style={styles.container}>
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* ==== Wallet Card ==== */}
-        <View style={styles.walletCard}>
-          <Text style={styles.walletTitle}>My Wallet</Text>
-          <Text style={styles.walletAmount}>
-            <Text style={{ fontWeight: "bold" }}>Rs </Text>
-            <Text style={styles.amountValue}>50,000.00</Text>
-          </Text>
-          <Text style={styles.paymentType}>
-            Payment type : <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
-          </Text>
-          <View style={styles.walletBtnRow}>
-            <TouchableOpacity style={styles.walletBtn} onPress={() => setShowSelector(true)}>
-              <Text style={styles.walletBtnText}>Change{"\n"}Payment type</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.walletBtn}>
-              <Text style={styles.walletBtnText}>Request{"\n"}Advance</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* === WALLET CARD === */}
+          <View style={styles.walletCard}>
+            <Text style={styles.walletTitle}>My Wallet</Text>
+            <Text style={styles.walletAmount}>
+              <Text style={{ fontWeight: "bold" }}>Rs </Text>
+              <Text style={styles.amountValue}>50,000.00</Text>
+            </Text>
+            <Text style={styles.paymentType}>
+              Payment type : <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
+            </Text>
+            <View style={styles.walletBtnRow}>
+              <TouchableOpacity style={styles.walletBtn} onPress={() => setShowSelector(true)}>
+                <Text style={styles.walletBtnText}>Change{"\n"}Payment type</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.walletBtn} onPress={() => setShowAdvanceModal(true)}>
+  <Text style={styles.walletBtnText}>Request{"\n"}Advance</Text>
+</TouchableOpacity>
 
-        {/* ==== Collect Payment Card ==== */}
-        <View style={styles.collectCard}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-            <Text style={styles.collectTitle}>Collect your Payment</Text>
-            <Text style={styles.collectAmount}>Rs 50,000.00</Text>
+            </View>
           </View>
-          <Text style={styles.collectDate}>Date : 25/06/25</Text>
+
+{/* === Requested Advance Cards === */}
+{advanceCards.map((item, index) => (
+  <View key={index} style={styles.collectCard}>
+    <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
+      <Text style={styles.collectTitle}>Advance Request</Text>
+      <Text style={styles.collectAmount}>Rs {Number(item.amount).toLocaleString()}</Text>
+    </View>
+    <Text style={styles.collectDate}>Payment Type : {item.paymentType}</Text>
+  </View>
+))}
+
+{/* === Request Advance Modal === */}
+<Modal
+  visible={showAdvanceModal}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setShowAdvanceModal(false)}
+>
+  <TouchableWithoutFeedback onPress={() => setShowAdvanceModal(false)}>
+    <View style={styles.loanModalBackdrop}>
+      <TouchableWithoutFeedback>
+        <View style={styles.advancePopup}>
+          <Text style={styles.loanPopupTitle}>Request Advance</Text>
+
+          <Text style={styles.advanceLabel}>Amount *</Text>
+          <TextInput
+            style={styles.advanceInput}
+            keyboardType="numeric"
+            placeholder="Enter amount"
+            placeholderTextColor="#999"
+            maxLength={9}
+            value={advanceAmount}
+            onChangeText={(value) => {
+              if (/^\d*$/.test(value)) setAdvanceAmount(value);
+            }}
+          />
+
+          <Text style={styles.advanceLabel}>Payment Type *</Text>
+          <View style={styles.advanceDropdown}>
+            {["Cash", "Bank Transfer", "Cheque"].map(type => (
+              <TouchableOpacity
+                key={type}
+                onPress={() => setAdvanceType(type)}
+                style={[
+                  styles.advanceDropdownItem,
+                  advanceType === type && styles.advanceDropdownItemSelected
+                ]}
+              >
+                <Text style={[
+                  styles.advanceDropdownText,
+                  advanceType === type && styles.advanceDropdownTextSelected
+                ]}>
+                  {type}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {advanceError !== "" && (
+            <Text style={styles.advanceErrorText}>{advanceError}</Text>
+          )}
+
           <TouchableOpacity
-            style={styles.collectBtn}
-            onPress={() => setShowSlideModal(true)}
+            style={[
+              styles.advanceRequestBtn,
+              !(advanceAmount && advanceType) && { backgroundColor: "#ccc" },
+            ]}
+            disabled={!(advanceAmount && advanceType)}
+            onPress={() => {
+              if (!advanceAmount || !advanceType) {
+                setAdvanceError("All fields are required.");
+                return;
+              }
+              setAdvanceCards(prev => [...prev, {
+                amount: advanceAmount,
+                paymentType: advanceType,
+              }]);
+              // clear form
+              setAdvanceAmount("");
+              setAdvanceType("");
+              setAdvanceError("");
+              setShowAdvanceModal(false);
+            }}
           >
-            <Text style={styles.collectBtnText}>Collect</Text>
+            <Text style={styles.advanceRequestBtnText}>Request</Text>
           </TouchableOpacity>
         </View>
+      </TouchableWithoutFeedback>
+    </View>
+  </TouchableWithoutFeedback>
+</Modal>
 
-        {/* ==== Loan Card ==== */}
-        <View style={styles.loanCard}>
-          <Text style={styles.loanTitle}>Loan</Text>
-          <Text style={styles.loanPending}>Pending amount to pay</Text>
-          <Text style={styles.loanAmount}>Rs 50,000.00</Text>
-          <View style={styles.loanRow}>
-            <Text style={styles.loanPending}>Monthly payment</Text>
-            <Text style={styles.loanMonthAmount}>Rs 18,000.00</Text>
+
+          {/* === COLLECT PAYMENT CARD === */}
+          <View style={styles.collectCard}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
+              <Text style={styles.collectTitle}>Collect your Payment</Text>
+              <Text style={styles.collectAmount}>Rs 50,000.00</Text>
+            </View>
+            <Text style={styles.collectDate}>Date : 25/06/25</Text>
+            <TouchableOpacity style={styles.collectBtn} onPress={() => setShowSlideModal(true)}>
+              <Text style={styles.collectBtnText}>Collect</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.loanBtn}>
-            <Text style={styles.loanBtnText}>Pay Loan</Text>
-          </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity style={{ marginTop: 22, marginLeft: 14 }} onPress={() => setShowHistory(true)}>
-          <Text style={styles.historyText}>View Payment History</Text>
-        </TouchableOpacity>
+          {/* === LOAN CARD === */}
+          <View style={styles.loanCard}>
+            <Text style={styles.loanTitle}>Loan</Text>
+            <Text style={styles.loanPending}>Pending amount to pay</Text>
+            <Text style={styles.loanAmount}>Rs 50,000.00</Text>
+            <View style={styles.loanRow}>
+              <Text style={styles.loanPending}>Monthly payment</Text>
+              <Text style={styles.loanMonthAmount}>Rs 18,000.00</Text>
+            </View>
+            <TouchableOpacity style={styles.loanBtn} onPress={() => setShowLoanDetails(true)}>
+              <Text style={styles.loanBtnText}>View</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={{ marginTop: 22, marginLeft: 14 }} onPress={() => setShowHistory(true)}>
+            <Text style={styles.historyText}>View Payment History</Text>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
 
-      {/* ===== Payment Type Modal ===== */}
+      {/* === PAYMENT TYPE SELECTOR MODAL === */}
       <Modal
         visible={showSelector}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setShowSelector(false)}
       >
@@ -148,10 +244,48 @@ export default function WalletPage() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ===== Payment History Modal ===== */}
+      {/* === LOAN DETAILS MODAL === */}
+      <Modal
+        visible={showLoanDetails}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLoanDetails(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowLoanDetails(false)}>
+          <View style={styles.loanModalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.loanPopup}>
+                <Text style={styles.loanPopupTitle}>Loan Details</Text>
+                <View style={styles.loanPopupRow}>
+                  <Text style={styles.loanPopupLabel}>Loan Amount:</Text>
+                  <Text style={styles.loanPopupValue}>Rs 50,000.00</Text>
+                </View>
+                <View style={styles.loanPopupRow}>
+                  <Text style={styles.loanPopupLabel}>Monthly Installment:</Text>
+                  <Text style={styles.loanPopupValue}>Rs 18,000.00</Text>
+                </View>
+                <View style={styles.loanPopupRow}>
+                  <Text style={styles.loanPopupLabel}>Interest Rate:</Text>
+                  <Text style={styles.loanPopupValue}>12%</Text>
+                </View>
+                <View style={styles.loanPopupRow}>
+                  <Text style={styles.loanPopupLabel}>Amount Payable:</Text>
+                  <Text style={styles.loanPopupValue}>Rs 54,000.00</Text>
+                </View>
+                <View style={styles.loanPopupRow}>
+                  <Text style={styles.loanPopupLabel}>Payment Type:</Text>
+                  <Text style={styles.loanPopupValue}>{paymentType}</Text>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* === PAYMENT HISTORY MODAL (WITH DETAIL POPUP) === */}
       <Modal
         visible={showHistory}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => {
           if (!selectedPayment) setShowHistory(false);
@@ -165,7 +299,6 @@ export default function WalletPage() {
             <View style={styles.modalBg}>
               <TouchableWithoutFeedback>
                 <View style={styles.sheet}>
-                  {/* Dismiss arrow */}
                   <TouchableOpacity
                     onPress={() => setShowHistory(false)}
                     style={styles.downArrowBtn}
@@ -175,14 +308,14 @@ export default function WalletPage() {
                   <Text style={styles.sheetTitle}>Payment History</Text>
                   <TextInput
                     style={styles.searchBar}
-                    placeholder="Search Request"
+                    placeholder="Search Payment"
                     placeholderTextColor="#888"
                     value={searchTerm}
                     onChangeText={setSearchTerm}
                     autoCorrect={false}
                   />
                   <View style={[styles.tableRow, styles.tableHeader]}>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 0.9 }]}>Request ID</Text>
+                    <Text style={[styles.cell, styles.headerCell, { flex: 0.9 }]}>Payment ID</Text>
                     <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Date</Text>
                     <Text style={[styles.cell, styles.headerCell, { flex: 1.1 }]}>Total(Rs)</Text>
                     <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Status</Text>
@@ -225,10 +358,10 @@ export default function WalletPage() {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
 
-        {/* ====== PAYMENT DETAIL POPUP ====== */}
+        {/* === PAYMENT DETAIL POPUP === */}
         <Modal
           visible={!!selectedPayment}
-          transparent={true}
+          transparent
           animationType="fade"
           onRequestClose={() => setSelectedPayment(null)}
         >
@@ -273,7 +406,7 @@ export default function WalletPage() {
         </Modal>
       </Modal>
 
-      {/* ===== Slide to confirm collection modal ===== */}
+      {/* === SLIDE TO CONFIRM (COLLECTION) MODAL === */}
       <Modal
         visible={showSlideModal}
         transparent
@@ -320,7 +453,6 @@ export default function WalletPage() {
                     setTimeout(() => {
                       setShowSlideModal(false);
                       setSlideConfirmed(false);
-                      // Optionally show a toast, update state, etc
                     }, 900);
                   }}
                   state={slideConfirmed}
@@ -336,6 +468,7 @@ export default function WalletPage() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", alignItems: "center" },
+  scrollContent: { alignItems: "center", paddingBottom: 100 },
   walletCard: {
     marginTop: 34,
     width: "92%",
@@ -370,8 +503,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 19,
   },
-
-  // --- Collect Payment Card ---
   collectCard: {
     marginTop: 18,
     width: "92%",
@@ -395,8 +526,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   collectBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-
-  // --- Loan Card ---
   loanCard: {
     width: "92%",
     backgroundColor: "#d3e8e3",
@@ -409,7 +538,14 @@ const styles = StyleSheet.create({
   loanTitle: { fontSize: 17, fontWeight: "700", color: "#183d2b", marginBottom: 3 },
   loanPending: { color: "#222", fontSize: 15 },
   loanAmount: { fontSize: 22, fontWeight: "bold", color: "#165E52", marginVertical: 2 },
-  loanRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginTop: 6, marginBottom: 5 },
+  loanRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 6,
+    marginBottom: 5,
+  },
   loanMonthAmount: { fontSize: 16, fontWeight: "600", color: "#183d2b", marginLeft: 18 },
   loanBtn: {
     backgroundColor: "#165E52",
@@ -420,7 +556,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   loanBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-
   historyText: {
     fontSize: 16,
     color: "#183d2b",
@@ -428,7 +563,68 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // ---- Payment History Modal ----
+  modalBgSel: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: 265,
+    backgroundColor: "#fff",
+    borderRadius: 13,
+    padding: 19,
+    elevation: 8,
+    alignItems: "flex-start",
+  },
+  modalTitle: {
+    fontWeight: "bold",
+    fontSize: 17.5,
+    marginBottom: 15,
+    color: "#111",
+  },
+  modalOption: { paddingVertical: 6, width: "100%" },
+  modalOptionText: { fontSize: 17, color: "#222" },
+
+  loanModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loanPopup: {
+    width: 310,
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 22,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  loanPopupTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginBottom: 16,
+    alignSelf: "center",
+  },
+  loanPopupRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  loanPopupLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  loanPopupValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#165E52",
+  },
+
   modalBg: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.12)",
@@ -446,11 +642,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.10,
     shadowOffset: { width: 0, height: -4 },
   },
-  downArrowBtn: {
-    alignItems: "center",
-    marginVertical: 0,
-    marginBottom: 6,
-  },
+  downArrowBtn: { alignItems: "center", marginVertical: 0, marginBottom: 6 },
   sheetTitle: {
     fontSize: 23,
     fontWeight: "700",
@@ -499,16 +691,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#183d2b",
   },
-  pendingStatus: {
-    color: "#f18b1b",
-    fontWeight: "700",
-  },
-  successStatus: {
-    color: "#228c22",
-    fontWeight: "700",
-  },
-
-  // ---- Payment Detail Popup ----
+  pendingStatus: { color: "#f18b1b", fontWeight: "700" },
+  successStatus: { color: "#228c22", fontWeight: "700" },
   detailModalBg: {
     flex: 1,
     justifyContent: "center",
@@ -533,55 +717,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignSelf: "center",
   },
-  detailRow: {
-    fontSize: 15.5,
-    marginBottom: 7,
-    color: "#333",
-  },
-  detailLabel: {
-    fontWeight: "600",
-  },
-  detailVal: {
-    fontWeight: "400",
-  },
-
-  // ---- Payment Type Modal ----
-  modalBgSel: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.12)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    width: 265,
-    backgroundColor: "#fff",
-    borderRadius: 13,
-    padding: 19,
-    elevation: 8,
-    alignItems: "flex-start",
-  },
-  modalTitle: {
-    fontWeight: "bold",
-    fontSize: 17.5,
-    marginBottom: 15,
-    color: "#111",
-  },
-  modalOption: {
-    paddingVertical: 6,
-    width: "100%",
-  },
-  modalOptionText: {
-    fontSize: 17,
-    color: "#222",
-  },
-  line: {
-    width: "100%",
-    height: 1,
-    backgroundColor: "#d8dad8",
-    marginVertical: 2,
-  },
-
-  // ---- Slide Modal ----
+  detailRow: { fontSize: 15.5, marginBottom: 7, color: "#333" },
+  detailLabel: { fontWeight: "600" },
+  detailVal: { fontWeight: "400" },
   slideModalBg: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.10)",
@@ -595,10 +733,79 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
+
+  advancePopup: {
+  width: 310,
+  backgroundColor: "#fff",
+  borderRadius: 15,
+  padding: 22,
+  elevation: 6,
+  shadowColor: "#000",
+  shadowOpacity: 0.2,
+  shadowOffset: { width: 0, height: 2 },
+},
+advanceLabel: {
+  fontSize: 15,
+  fontWeight: "600",
+  marginTop: 14,
+  marginBottom: 6,
+  color: "#183d2b",
+},
+advanceInput: {
+  backgroundColor: "#eaf2ea",
+  borderRadius: 6,
+  fontSize: 16,
+  color: "#222",
+  paddingVertical: 7,
+  paddingHorizontal: 14,
+},
+advanceDropdown: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  marginTop: 4,
+},
+advanceDropdownItem: {
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+  backgroundColor: "#ecf3ef",
+  borderRadius: 10,
+  marginRight: 8,
+  marginBottom: 8,
+},
+advanceDropdownItemSelected: {
+  backgroundColor: "#165E52",
+},
+advanceDropdownText: {
+  color: "#165E52",
+  fontWeight: "600",
+},
+advanceDropdownTextSelected: {
+  color: "#fff",
+},
+advanceErrorText: {
+  color: "#B3292A",
+  fontSize: 14,
+  marginTop: 4,
+  marginBottom: 6,
+  fontWeight: "600",
+},
+advanceRequestBtn: {
+  backgroundColor: "#165E52",
+  marginTop: 20,
+  borderRadius: 10,
+  paddingVertical: 10,
+  alignItems: "center",
+},
+advanceRequestBtnText: {
+  color: "#fff",
+  fontWeight: "700",
+  fontSize: 16,
+
   scrollContent: {
   alignItems: "center",
   paddingBottom: 90, 
- 
+
 },
 
 });
