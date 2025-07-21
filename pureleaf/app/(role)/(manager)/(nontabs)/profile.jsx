@@ -25,8 +25,9 @@ export default function Profile() {
 
   const [formData, setFormData] = useState({
     name: 'Shehan Hasaranga',
+    employee_id: 'AB123',
     email: 'Shehanhasaranga@gmail.com',
-    homeAddress: 'No 12, Anderson lane , Neluwa',
+    estate: 'Andaradeniya estate',
     phoneNumber: '070 5678432',
     pickUpAddress: 'No 31, Perera lane, Neluwa',
   });
@@ -49,7 +50,7 @@ export default function Profile() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
           <Image source={profileImage} style={styles.avatar} />
@@ -63,7 +64,8 @@ export default function Profile() {
         <View style={styles.detailsBox}>
           {[
             { icon: 'mail-outline', label: 'Email', value: formData.email },
-            { icon: 'home-outline', label: 'Home', value: formData.homeAddress },
+            { icon: 'id-card-outline', label: 'Employee ID', value: formData.employee_id },
+            { icon: 'home-outline', label: 'Estate', value: formData.estate },
             { icon: 'call-outline', label: 'Phone', value: formData.phoneNumber },
             { icon: 'location-outline', label: 'Pick up', value: formData.pickUpAddress },
           ].map((item, index) => (
@@ -114,6 +116,15 @@ export default function Profile() {
             </View>
 
             <View style={styles.labeledInput}>
+              <Text style={styles.inputLabel}>Employee ID</Text>
+              <TextInput
+                style={[styles.input, styles.disabledInput]}
+                value={formData.employee_id}
+                editable={false}
+              />
+            </View>
+
+            <View style={styles.labeledInput}>
               <Text style={styles.inputLabel}>Email</Text>
               <TextInput
                 style={[styles.input, styles.disabledInput]}
@@ -126,7 +137,7 @@ export default function Profile() {
               <Text style={styles.inputLabel}>Home Address</Text>
               <TextInput
                 style={[styles.input, styles.disabledInput]}
-                value={formData.homeAddress}
+                value={formData.estate}
                 editable={false}
               />
             </View>

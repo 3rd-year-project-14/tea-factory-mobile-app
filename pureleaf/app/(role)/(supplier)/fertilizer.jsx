@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import SlideToConfirm from 'rn-slide-to-confirm';
 
-
 const fertilizerTypes = [
   {
     id: 1,
@@ -58,7 +57,6 @@ export default function FertilizerPage() {
   const [fertilizerState, setFertilizerState] = useState('none'); // 'none', 'placed', 'driver', 'pending'
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
-
   // Open the request modal
   const openRequestModal = () => {
     requestSheetRef.current.open();
@@ -108,7 +106,7 @@ export default function FertilizerPage() {
           </Text>
           <Text style={styles.dateLabel}>From : 01/05/25</Text>
           <Text style={styles.dateLabel}>To : 01/06/25</Text>
-          <TouchableOpacity style={styles.viewButton}>
+          <TouchableOpacity style={styles.viewButton}  onPress={() => router.replace('/usage')}>
             <Text style={styles.viewButtonText}>View</Text>
           </TouchableOpacity>
         </View>

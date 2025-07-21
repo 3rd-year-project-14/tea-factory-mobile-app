@@ -19,6 +19,33 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const router = useRouter();
 
+
+//   const handleLogin = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(supplier)');
+//   };
+
+//     const handleLogin1 = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(driver)');
+//   };
+//   const handleLogin2 = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(inhouse)');
+//   };
+//   const handleLogin3 = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(manager)');
+//   };
+
   // const handleLogin = async () => {
   //   try {
   //     // ✅ 1. Firebase login
@@ -106,6 +133,7 @@ const handleLogin = async () => {
   }
 };
 
+
   return (
     <ImageBackground
       source={require("../assets/images/bg.jpg")}
@@ -138,6 +166,11 @@ const handleLogin = async () => {
           placeholderTextColor="#888"
           secureTextEntry
         />
+
+        {/* <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
+          <Text style={styles.loginBtnText}>Login</Text>
+        </TouchableOpacity> */}
+
         <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity>

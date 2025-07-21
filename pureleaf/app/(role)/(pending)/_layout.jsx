@@ -34,8 +34,8 @@ function CustomTabBar({ state, descriptors, navigation }) {
           };
 
           let iconName = 'home';
-          if (route.name === 'fertilizer') iconName = 'leaf';
 
+          
           return (
             <TouchableOpacity
               key={route.key}
