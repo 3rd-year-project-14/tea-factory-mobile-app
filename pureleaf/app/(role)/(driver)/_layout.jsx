@@ -2,10 +2,11 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 // --- Custom Tab Bar ---
 function CustomTabBar({ state, descriptors, navigation }) {
-  const tabRoutes = ['index', 'fertilizer'];
+  const tabRoutes = ['index', 'collect','wallet'];
   return (
     <View style={styles.tabBar}>
       {state.routes
@@ -34,7 +35,8 @@ function CustomTabBar({ state, descriptors, navigation }) {
           };
 
           let iconName = 'home';
-          if (route.name === 'fertilizer') iconName = 'leaf';
+          if (route.name === 'collect') iconName = 'checkmark-done';
+          if (route.name === 'wallet') iconName = 'wallet';
 
           return (
             <TouchableOpacity
@@ -44,8 +46,14 @@ function CustomTabBar({ state, descriptors, navigation }) {
               onPress={onPress}
               style={styles.tab}
             >
-              <Ionicons name={iconName} size={24} color={isFocused ? '#183d2b' : '#888'} />
-              <Text style={[styles.tabLabel, { color: isFocused ? '#183d2b' : '#888' }]}>{label}</Text>
+              <Ionicons
+                name={iconName}
+                size={24}
+                color={isFocused ? '#183d2b' : '#888'}
+              />
+              <Text style={[styles.tabLabel, { color: isFocused ? '#183d2b' : '#888' }]}>
+                {label}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -53,8 +61,9 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
-// --- Your Manager Header (unchanged) ---
+// --- Header component ---
 function ManagerHeader() {
+   const router = useRouter();
   return (
     <View style={styles.header}>
       <View style={styles.logoRow}>
@@ -68,26 +77,25 @@ function ManagerHeader() {
         <TouchableOpacity style={styles.iconBtn}>
           <Ionicons name="notifications-outline" size={28} color="#183d2b" />
         </TouchableOpacity>
-        <TouchableOpacity>
-          <Image
-            source={require('../../../assets/images/propic.jpg')}
-            style={styles.avatar}
-          />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/(nontabs)/profile')}>
+                    <Image
+                      source={require('../../../assets/images/propic.jpg')}
+                      style={styles.avatar}
+                    />
+                  </TouchableOpacity>
       </View>
     </View>
   );
 }
 
+// --- Main Layout ---
 export default function ManagerLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#eaf2ea' }}>
       <ManagerHeader />
       <Tabs
         tabBar={props => <CustomTabBar {...props} />}
-        screenOptions={{
-          headerShown: false,
-        }}
+        screenOptions={{ headerShown: false }}
       >
         <Tabs.Screen
           name="index"
@@ -96,9 +104,15 @@ export default function ManagerLayout() {
           }}
         />
         <Tabs.Screen
-          name="fertilizer"
+          name="collect"
           options={{
-            tabBarLabel: 'Fertilizer',
+            tabBarLabel: 'Pick Ups',
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            tabBarLabel: 'Wallet',
           }}
         />
       </Tabs>
@@ -106,8 +120,8 @@ export default function ManagerLayout() {
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  // --- Custom tab bar styles ---
   tabBar: {
     position: 'absolute',
     bottom: 18,
@@ -136,8 +150,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
   },
-
-  // --- Header styles (unchanged) ---
   header: {
     flexDirection: 'row',
     alignItems: 'center',

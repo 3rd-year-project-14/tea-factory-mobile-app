@@ -72,11 +72,11 @@ function ManagerHeader() {
           <Ionicons name="notifications-outline" size={28} color="#183d2b" />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/(nontabs)/profile')}>
-          <Image
-            source={require('../../../assets/images/propic.jpg')}
-            style={styles.avatar}
-          />
-        </TouchableOpacity>
+                            <Image
+                              source={require('../../../assets/images/propic.jpg')}
+                              style={styles.avatar}
+                            />
+                          </TouchableOpacity>
       </View>
     </View>
   );

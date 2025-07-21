@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,43 +11,99 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+  Alert,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
+import { auth } from "../firebase"; // adjust path if firebase.js is elsewhere
 
 export default function SignupBasicForm() {
   const [form, setForm] = useState({
-    fullName: '',
-    nic: '',
-    phone: '',
-    email: '', // ✅ Added missing email field
-    address: '',
-    password:'',
-    confirmpw:'',
+    fullName: "",
+    nic: "",
+    phone: "",
+    email: "",
+    address: "",
+    password: "",
+    confirmpw: "",
   });
 
   const router = useRouter();
   const allFieldsFilled = Object.values(form).every((v) => v.trim().length > 0);
 
+  const handleSignup = async () => {
+    if (form.password !== form.confirmpw) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
+    try {
+      // ⿡ Create user in Firebase
+      const userCred = await createUserWithEmailAndPassword(
+        auth,
+        form.email,
+        form.password
+      );
+      const user = userCred.user;
+
+      // ⿢ Get Firebase token
+      const token = await getIdToken(user);
+
+      // ⿣ Send to Spring Boot backend
+      const response = await fetch(
+        "http://192.168.8.195:8080/api/auth/signup",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            token,
+            name: form.fullName,
+            nic: form.nic,
+            contactNo: form.phone,
+            email: form.email,
+            address: form.address,
+          }),
+        }
+      );
+
+      const result = await response.text();
+
+      if (response.ok) {
+        Alert.alert("Success", "Signup successful!");
+        router.replace("/login");
+      } else {
+        Alert.alert("Signup failed", result);
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      Alert.alert("Error", error.message || "Something went wrong");
+    }
+  };
+
   return (
     <ImageBackground
-      source={require('../assets/images/bg.jpg')}
+      source={require("../assets/images/bg.jpg")}
       style={styles.bg}
       resizeMode="cover"
     >
       <View style={styles.overlay} />
-
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
-          style={{ flex: 1, width: '100%' }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+          style={{ flex: 1, width: "100%" }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.card}>
-              <Image source={require('../assets/images/logo2.png')} style={styles.logo} />
+              <Image
+                source={require("../assets/images/logo2.png")}
+                style={styles.logo}
+              />
               <Text style={styles.title}>Tell us about you!</Text>
 
               <Text style={styles.label}>Full name</Text>
@@ -58,7 +114,6 @@ export default function SignupBasicForm() {
                 placeholder="Full name"
                 placeholderTextColor="#888"
               />
-
 
               <Text style={styles.label}>NIC</Text>
               <TextInput
@@ -99,40 +154,41 @@ export default function SignupBasicForm() {
               />
 
               <Text style={styles.label}>Password</Text>
-<TextInput
-  style={styles.input}
-  value={form.password}
-  onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
-  placeholder="Password"
-  placeholderTextColor="#888"
-  secureTextEntry={true}
-/>
+              <TextInput
+                style={styles.input}
+                value={form.password}
+                onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
+                placeholder="Password"
+                placeholderTextColor="#888"
+                secureTextEntry={true}
+              />
 
-<Text style={styles.label}>Confirm Password</Text>
-<TextInput
-  style={styles.input}
-  value={form.confirmpw}
-  onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
-  placeholder="Confirm password"
-  placeholderTextColor="#888"
-  secureTextEntry={true}
-/>
-
+              <Text style={styles.label}>Confirm Password</Text>
+              <TextInput
+                style={styles.input}
+                value={form.confirmpw}
+                onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
+                placeholder="Confirm password"
+                placeholderTextColor="#888"
+                secureTextEntry={true}
+              />
 
               <TouchableOpacity
                 style={[
                   styles.nextBtn,
-                  !allFieldsFilled && { backgroundColor: '#bbb' },
+                  !allFieldsFilled && { backgroundColor: "#bbb" },
                 ]}
                 disabled={!allFieldsFilled}
-                onPress={() => router.push('/(role)/(pending)')}
+                onPress={handleSignup}
               >
                 <Text style={styles.nextBtnText}>Sign up</Text>
               </TouchableOpacity>
 
               <View style={styles.loginRow}>
-                <Text style={styles.loginText}>Already have an account yet? </Text>
-                <TouchableOpacity onPress={() => router.replace('/login')}>
+                <Text style={styles.loginText}>
+                  Already have an account yet?{" "}
+                </Text>
+                <TouchableOpacity onPress={() => router.replace("/login")}>
                   <Text style={styles.loginLink}>Log in</Text>
                 </TouchableOpacity>
               </View>
@@ -147,93 +203,92 @@ export default function SignupBasicForm() {
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 40,
   },
   bg: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(30,30,30,0.5)',
+    backgroundColor: "rgba(30,30,30,0.5)",
     zIndex: 1,
   },
   safeArea: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 2,
   },
   card: {
-    width: '85%',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    width: "85%",
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 24,
     paddingVertical: 32,
     paddingHorizontal: 24,
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 8,
   },
   logo: {
     width: 48,
     height: 48,
     marginBottom: 16,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
-    color: '#222',
-    textAlign: 'center',
+    color: "#222",
+    textAlign: "center",
   },
   label: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     fontSize: 15,
-    color: '#222',
+    color: "#222",
     marginTop: 8,
     marginBottom: 2,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   input: {
-    width: '100%',
-    backgroundColor: '#dedede',
+    width: "100%",
+    backgroundColor: "#dedede",
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
     marginBottom: 4,
-    color: '#222',
+    color: "#222",
   },
   nextBtn: {
-    width: '85%',
-    backgroundColor: '#183d2b',
+    width: "85%",
+    backgroundColor: "#183d2b",
     borderRadius: 16,
     paddingVertical: 12,
-    alignItems: 'center',
-    // marginBottom: 16,
+    alignItems: "center",
     marginTop: 16,
   },
   nextBtnText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   loginRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 6,
   },
   loginText: {
-    color: '#444',
+    color: "#444",
     fontSize: 14,
   },
   loginLink: {
-    color: '#183d2b',
-    fontWeight: '600',
+    color: "#183d2b",
+    fontWeight: "600",
     fontSize: 14,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
   },
 });
