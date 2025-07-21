@@ -100,22 +100,22 @@ export default function SignupBasicForm() {
 
               <Text style={styles.label}>Password</Text>
 <TextInput
-  style={styles.input}
-  value={form.password}
-  onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
-  placeholder="Password"
-  placeholderTextColor="#888"
-  secureTextEntry={true}
+  style={styles.input}
+  value={form.password}
+  onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
+  placeholder="Password"
+  placeholderTextColor="#888"
+  secureTextEntry={true}
 />
 
 <Text style={styles.label}>Confirm Password</Text>
 <TextInput
-  style={styles.input}
-  value={form.confirmpw}
-  onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
-  placeholder="Confirm password"
-  placeholderTextColor="#888"
-  secureTextEntry={true}
+  style={styles.input}
+  value={form.confirmpw}
+  onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
+  placeholder="Confirm password"
+  placeholderTextColor="#888"
+  secureTextEntry={true}
 />
 
 
