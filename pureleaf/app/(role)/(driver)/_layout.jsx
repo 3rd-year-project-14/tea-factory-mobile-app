@@ -2,10 +2,11 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 // --- Custom Tab Bar ---
 function CustomTabBar({ state, descriptors, navigation }) {
-  const tabRoutes = ['index', 'collect'];
+  const tabRoutes = ['index', 'collect','wallet'];
   return (
     <View style={styles.tabBar}>
       {state.routes
@@ -35,6 +36,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
 
           let iconName = 'home';
           if (route.name === 'collect') iconName = 'checkmark-done';
+          if (route.name === 'wallet') iconName = 'wallet';
 
           return (
             <TouchableOpacity
@@ -61,6 +63,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
 
 // --- Header component ---
 function ManagerHeader() {
+   const router = useRouter();
   return (
     <View style={styles.header}>
       <View style={styles.logoRow}>
@@ -74,12 +77,12 @@ function ManagerHeader() {
         <TouchableOpacity style={styles.iconBtn}>
           <Ionicons name="notifications-outline" size={28} color="#183d2b" />
         </TouchableOpacity>
-        <TouchableOpacity>
-          <Image
-            source={require('../../../assets/images/propic.jpg')}
-            style={styles.avatar}
-          />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/(nontabs)/profile')}>
+                    <Image
+                      source={require('../../../assets/images/propic.jpg')}
+                      style={styles.avatar}
+                    />
+                  </TouchableOpacity>
       </View>
     </View>
   );
@@ -104,6 +107,12 @@ export default function ManagerLayout() {
           name="collect"
           options={{
             tabBarLabel: 'Pick Ups',
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            tabBarLabel: 'Wallet',
           }}
         />
       </Tabs>

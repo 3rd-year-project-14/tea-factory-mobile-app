@@ -25,13 +25,20 @@ export default function Profile() {
 
   const [formData, setFormData] = useState({
     name: 'Shehan Hasaranga',
+    employee_id: 'AB123',
     email: 'Shehanhasaranga@gmail.com',
-    homeAddress: 'No 12, Anderson lane , Neluwa',
     phoneNumber: '070 5678432',
-    pickUpAddress: 'No 31, Perera lane, Neluwa',
-    landSize: '2 acres',
-    monthlyTeaCapacity: '500 kg',
+    emergencyPhoneNumber: '077 1234567',
+    licenseExpiryDate: '2026-10-15',
   });
+
+  // ---- Vehicle State ----
+  const [vehicleData, setVehicleData] = useState({
+    model: 'Toyota Prius',
+    licensePlate: 'ABC-1234',
+    image: require('../../../../assets/images/vehicle.jpg'),
+  });
+  const [vehicleEditVisible, setVehicleEditVisible] = useState(false);
 
   const handleImagePick = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -50,6 +57,27 @@ export default function Profile() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // ---- Vehicle Functions ----
+  const handleVehicleImagePick = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      cameraType: ImagePicker.CameraType.back,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setVehicleData((prev) => ({
+        ...prev,
+        image: { uri: result.assets[0].uri }
+      }));
+    }
+  };
+
+  const handleVehicleChange = (field, value) => {
+    setVehicleData((prev) => ({ ...prev, [field]: value }));
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
       <View style={styles.profileCard}>
@@ -65,11 +93,10 @@ export default function Profile() {
         <View style={styles.detailsBox}>
           {[
             { icon: 'mail-outline', label: 'Email', value: formData.email },
-            { icon: 'home-outline', label: 'Home', value: formData.homeAddress },
+            { icon: 'home-outline', label: 'Employee ID', value: formData.employee_id },
             { icon: 'call-outline', label: 'Phone', value: formData.phoneNumber },
-            { icon: 'location-outline', label: 'Pick up', value: formData.pickUpAddress },
-            { icon: 'leaf-outline', label: 'Land Size', value: formData.landSize },
-            { icon: 'trending-up-outline', label: 'Monthly Tea Capacity', value: formData.monthlyTeaCapacity },
+            { icon: 'call-outline', label: 'Emergency Phone', value: formData.emergencyPhoneNumber },
+            { icon: 'calendar-outline', label: 'License Expiry', value: formData.licenseExpiryDate },
           ].map((item, index) => (
             <View style={styles.detailRow} key={index}>
               <Ionicons name={item.icon} size={18} color="#4e6c50" style={styles.icon} />
@@ -78,18 +105,37 @@ export default function Profile() {
             </View>
           ))}
         </View>
-
-        <View style={styles.buttonGroup}>
-          <TouchableOpacity style={styles.buttonSecondary} onPress={() => setEditVisible(true)}>
+<View style={styles.buttonGroup}>
+  <TouchableOpacity style={styles.buttonSecondary} onPress={() => setEditVisible(true)}>
             <MaterialIcons name="edit" size={16} color="#4e6c50" />
             <Text style={styles.buttonTextSecondary}>Edit profile</Text>
           </TouchableOpacity>
+</View>
+        {/* ---- Vehicle Card ---- */}
+        <View style={styles.vehicleCard}>
+          <Text style={styles.vehicleTitle}>Vehicle Details</Text>
+          <View style={styles.vehicleDetailsRow}>
+            <Image source={vehicleData.image} style={styles.vehicleImage} />
+            <View style={{ flex: 1, marginLeft: 18 }}>
+              <Text style={styles.vehicleLabel}>Model/Make:</Text>
+              <Text style={styles.vehicleValue}>{vehicleData.model}</Text>
+              <Text style={[styles.vehicleLabel, { marginTop: 8 }]}>License Plate:</Text>
+              <Text style={styles.vehicleValue}>{vehicleData.licensePlate}</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.vehicleEditButton} onPress={() => setVehicleEditVisible(true)}>
+            <MaterialIcons name="edit" size={16} color="#4e6c50" />
+            <Text style={styles.buttonTextSecondary}>Edit Vehicle</Text>
+          </TouchableOpacity>
+        </View>
+        {/* ---- End Vehicle Card ---- */}
 
+        <View style={styles.buttonGroup}>
+          
           <TouchableOpacity style={styles.buttonSecondary} onPress={() => setPasswordVisible(true)}>
             <Ionicons name="key-outline" size={16} color="#4e6c50" />
             <Text style={styles.buttonTextSecondary}>Change password</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.buttonLogout}>
             <Ionicons name="log-out-outline" size={18} color="#fff" />
             <Text style={styles.buttonTextLogout}>Logout</Text>
@@ -97,17 +143,15 @@ export default function Profile() {
         </View>
       </View>
 
-      {/* ─── Edit Profile Modal ─────────────────────────────── */}
+      {/* ---- Edit Profile Modal ---- */}
       <Modal visible={editVisible} animationType="slide" transparent>
         <TouchableOpacity
           activeOpacity={1}
           onPressOut={() => setEditVisible(false)}
           style={styles.modalContainer}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => { }}>
             <Text style={styles.modalTitle}>Edit Profile</Text>
-
-            {/* Labeled Inputs */}
             <View style={styles.labeledInput}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <TextInput
@@ -127,10 +171,10 @@ export default function Profile() {
             </View>
 
             <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Home Address</Text>
+              <Text style={styles.inputLabel}>Employee ID</Text>
               <TextInput
                 style={[styles.input, styles.disabledInput]}
-                value={formData.homeAddress}
+                value={formData.employee_id}
                 editable={false}
               />
             </View>
@@ -146,32 +190,23 @@ export default function Profile() {
             </View>
 
             <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Pick-up Address</Text>
+              <Text style={styles.inputLabel}>Emergency Phone Number</Text>
               <TextInput
                 style={styles.input}
-                value={formData.pickUpAddress}
-                onChangeText={(text) => handleChange('pickUpAddress', text)}
+                value={formData.emergencyPhoneNumber}
+                keyboardType="phone-pad"
+                onChangeText={(text) => handleChange('emergencyPhoneNumber', text)}
               />
             </View>
 
             <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Land Size</Text>
+              <Text style={styles.inputLabel}>License Expiry Date</Text>
               <TextInput
-                style={styles.input}
-                value={formData.landSize}
-                onChangeText={(text) => handleChange('landSize', text)}
+                style={[styles.input, styles.disabledInput]}
+                value={formData.licenseExpiryDate}
+                editable={false}
               />
             </View>
-
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Monthly Tea Capacity</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.monthlyTeaCapacity}
-                onChangeText={(text) => handleChange('monthlyTeaCapacity', text)}
-              />
-            </View>
-
             <TouchableOpacity style={styles.modalButton} onPress={() => setEditVisible(false)}>
               <Text style={styles.modalButtonText}>Save</Text>
             </TouchableOpacity>
@@ -179,16 +214,15 @@ export default function Profile() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ─── Change Password Modal ───────────────────────────── */}
+      {/* ---- Change Password Modal ---- */}
       <Modal visible={passwordVisible} animationType="slide" transparent>
         <TouchableOpacity
           activeOpacity={1}
           onPressOut={() => setPasswordVisible(false)}
           style={styles.modalContainer}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => { }}>
             <Text style={styles.modalTitle}>Change Password</Text>
-
             <TextInput
               style={styles.input}
               placeholder="Enter current password"
@@ -207,18 +241,56 @@ export default function Profile() {
               placeholderTextColor="#565656ff"
               secureTextEntry
             />
-
             <TouchableOpacity style={styles.modalButton} onPress={() => setPasswordVisible(false)}>
               <Text style={styles.modalButtonText}>Change</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* ---- Vehicle Edit Modal ---- */}
+      <Modal visible={vehicleEditVisible} animationType="slide" transparent>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPressOut={() => setVehicleEditVisible(false)}
+          style={styles.modalContainer}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => { }}>
+            <Text style={styles.modalTitle}>Edit Vehicle</Text>
+            <TouchableOpacity style={styles.vehicleImagePicker} onPress={handleVehicleImagePick}>
+              <Image source={vehicleData.image} style={styles.vehicleImageEdit} />
+              <View style={styles.vehicleImageEditIcon}>
+                <MaterialIcons name="edit" size={18} color="#fff" />
+              </View>
+            </TouchableOpacity>
+            <View style={styles.labeledInput}>
+              <Text style={styles.inputLabel}>Model / Make</Text>
+              <TextInput
+                style={styles.input}
+                value={vehicleData.model}
+                onChangeText={(text) => handleVehicleChange('model', text)}
+              />
+            </View>
+            <View style={styles.labeledInput}>
+              <Text style={styles.inputLabel}>License Plate</Text>
+              <TextInput
+                style={styles.input}
+                value={vehicleData.licensePlate}
+                onChangeText={(text) => handleVehicleChange('licensePlate', text)}
+              />
+            </View>
+            <TouchableOpacity style={styles.modalButton} onPress={() => setVehicleEditVisible(false)}>
+              <Text style={styles.modalButtonText}>Save</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+      {/* ---- End Vehicle Edit Modal ---- */}
     </ScrollView>
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────
+// ---- Styles ----
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f1f5f1',
@@ -296,6 +368,56 @@ const styles = StyleSheet.create({
     color: '#334533',
     flex: 1,
     flexWrap: 'wrap',
+  },
+  vehicleCard: {
+    backgroundColor: '#f8faf7',
+    borderRadius: 18,
+    padding: 18,
+    width: '100%',
+    marginTop: 24,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e0e6e1',
+  },
+  vehicleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#183d2b',
+    marginBottom: 12,
+  },
+  vehicleDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  vehicleImage: {
+    width: 80,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: '#e6e8e4',
+  },
+  vehicleLabel: {
+    fontSize: 14,
+    color: '#7aa07a',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  vehicleValue: {
+    fontSize: 15,
+    color: '#334533',
+    fontWeight: '500',
+  },
+  vehicleEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    borderColor: '#ccdacc',
+    borderWidth: 1.2,
+    borderRadius: 10,
+    backgroundColor: '#eff5ee',
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 18,
   },
   buttonGroup: {
     marginTop: 30,
@@ -381,5 +503,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  vehicleImagePicker: {
+    alignSelf: 'center',
+    marginBottom: 18,
+    position: 'relative',
+  },
+  vehicleImageEdit: {
+    width: 120,
+    height: 90,
+    borderRadius: 12,
+    backgroundColor: '#e6e8e4',
+  },
+  vehicleImageEditIcon: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: '#183d2b',
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    zIndex: 1,
   },
 });

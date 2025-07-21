@@ -24,14 +24,13 @@ export default function Profile() {
   );
 
   const [formData, setFormData] = useState({
-    name: 'Shehan Hasaranga',
-    email: 'Shehanhasaranga@gmail.com',
-    homeAddress: 'No 12, Anderson lane , Neluwa',
-    phoneNumber: '070 5678432',
-    pickUpAddress: 'No 31, Perera lane, Neluwa',
-    landSize: '2 acres',
-    monthlyTeaCapacity: '500 kg',
-  });
+  name: 'Shehan Hasaranga',
+  employee_id: 'AB123',
+  email: 'Shehanhasaranga@gmail.com',
+  phoneNumber: '070 5678432',
+  emergencyPhoneNumber: '077 1234567',
+  licenseExpiryDate: '2026-10-15',
+});
 
   const handleImagePick = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -51,7 +50,7 @@ export default function Profile() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1,paddingBottom: 100  }}>
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
           <Image source={profileImage} style={styles.avatar} />
@@ -64,19 +63,18 @@ export default function Profile() {
 
         <View style={styles.detailsBox}>
           {[
-            { icon: 'mail-outline', label: 'Email', value: formData.email },
-            { icon: 'home-outline', label: 'Home', value: formData.homeAddress },
-            { icon: 'call-outline', label: 'Phone', value: formData.phoneNumber },
-            { icon: 'location-outline', label: 'Pick up', value: formData.pickUpAddress },
-            { icon: 'leaf-outline', label: 'Land Size', value: formData.landSize },
-            { icon: 'trending-up-outline', label: 'Monthly Tea Capacity', value: formData.monthlyTeaCapacity },
-          ].map((item, index) => (
-            <View style={styles.detailRow} key={index}>
-              <Ionicons name={item.icon} size={18} color="#4e6c50" style={styles.icon} />
-              <Text style={styles.label}>{item.label}:</Text>
-              <Text style={styles.value}>{item.value}</Text>
-            </View>
-          ))}
+  { icon: 'mail-outline', label: 'Email', value: formData.email },
+  { icon: 'home-outline', label: 'Employee ID', value: formData.employee_id },
+  { icon: 'call-outline', label: 'Phone', value: formData.phoneNumber },
+  { icon: 'call-outline', label: 'Emergency Phone', value: formData.emergencyPhoneNumber },
+  { icon: 'calendar-outline', label: 'License Expiry', value: formData.licenseExpiryDate },
+].map((item, index) => (
+  <View style={styles.detailRow} key={index}>
+    <Ionicons name={item.icon} size={18} color="#4e6c50" style={styles.icon} />
+    <Text style={styles.label}>{item.label}:</Text>
+    <Text style={styles.value}>{item.value}</Text>
+  </View>
+))}
         </View>
 
         <View style={styles.buttonGroup}>
@@ -109,68 +107,60 @@ export default function Profile() {
 
             {/* Labeled Inputs */}
             <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Full Name</Text>
-              <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={formData.name}
-                editable={false}
-              />
-            </View>
+  <Text style={styles.inputLabel}>Full Name</Text>
+  <TextInput
+    style={[styles.input, styles.disabledInput]}
+    value={formData.name}
+    editable={false}
+  />
+</View>
 
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={formData.email}
-                editable={false}
-              />
-            </View>
+<View style={styles.labeledInput}>
+  <Text style={styles.inputLabel}>Email</Text>
+  <TextInput
+    style={[styles.input, styles.disabledInput]}
+    value={formData.email}
+    editable={false}
+  />
+</View>
 
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Home Address</Text>
-              <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={formData.homeAddress}
-                editable={false}
-              />
-            </View>
+<View style={styles.labeledInput}>
+  <Text style={styles.inputLabel}>Employee ID</Text>
+  <TextInput
+    style={[styles.input, styles.disabledInput]}
+    value={formData.employee_id}
+    editable={false}
+  />
+</View>
 
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Phone Number</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.phoneNumber}
-                keyboardType="phone-pad"
-                onChangeText={(text) => handleChange('phoneNumber', text)}
-              />
-            </View>
+<View style={styles.labeledInput}>
+  <Text style={styles.inputLabel}>Phone Number</Text>
+  <TextInput
+    style={styles.input}
+    value={formData.phoneNumber}
+    keyboardType="phone-pad"
+    onChangeText={(text) => handleChange('phoneNumber', text)}
+  />
+</View>
 
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Pick-up Address</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.pickUpAddress}
-                onChangeText={(text) => handleChange('pickUpAddress', text)}
-              />
-            </View>
+<View style={styles.labeledInput}>
+  <Text style={styles.inputLabel}>Emergency Phone Number</Text>
+  <TextInput
+    style={styles.input}
+    value={formData.emergencyPhoneNumber}
+    keyboardType="phone-pad"
+    onChangeText={(text) => handleChange('emergencyPhoneNumber', text)}
+  />
+</View>
 
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Land Size</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.landSize}
-                onChangeText={(text) => handleChange('landSize', text)}
-              />
-            </View>
-
-            <View style={styles.labeledInput}>
-              <Text style={styles.inputLabel}>Monthly Tea Capacity</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.monthlyTeaCapacity}
-                onChangeText={(text) => handleChange('monthlyTeaCapacity', text)}
-              />
-            </View>
+<View style={styles.labeledInput}>
+  <Text style={styles.inputLabel}>License Expiry Date</Text>
+  <TextInput
+    style={[styles.input, styles.disabledInput]}
+    value={formData.licenseExpiryDate}
+    editable={false}
+  />
+</View>
 
             <TouchableOpacity style={styles.modalButton} onPress={() => setEditVisible(false)}>
               <Text style={styles.modalButtonText}>Save</Text>
@@ -223,6 +213,8 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f1f5f1',
     flex: 1,
+   
+
   },
   profileCard: {
     backgroundColor: '#ffffff',

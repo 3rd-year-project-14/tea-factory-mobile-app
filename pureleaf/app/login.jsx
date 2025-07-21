@@ -1,67 +1,176 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, ImageBackground } from 'react-native';
-import { useRouter } from 'expo-router';
 
+import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  ImageBackground,
+} from "react-native";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../firebase"; // 👈 path to firebase.js
+import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const router = useRouter();
 
-  const handleLogin = () => {
-    // Add your authentication logic here
-    // If successful: router.replace('/(tabs)');
-    // alert('Login pressed');
-    router.replace('/(role)/(supplier)');
-  };
 
-    const handleLogin1 = () => {
-    // Add your authentication logic here
-    // If successful: router.replace('/(tabs)');
-    // alert('Login pressed');
-    router.replace('/(role)/(driver)');
-  };
-  const handleLogin2 = () => {
-    // Add your authentication logic here
-    // If successful: router.replace('/(tabs)');
-    // alert('Login pressed');
-    router.replace('/(role)/(inhouse)');
-  };
+//   const handleLogin = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(supplier)');
+//   };
+
+//     const handleLogin1 = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(driver)');
+//   };
+//   const handleLogin2 = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(inhouse)');
+//   };
+//   const handleLogin3 = () => {
+//     // Add your authentication logic here
+//     // If successful: router.replace('/(tabs)');
+//     // alert('Login pressed');
+//     router.replace('/(role)/(manager)');
+//   };
+
+  // const handleLogin = async () => {
+  //   try {
+  //     // ✅ 1. Firebase login
+  //     const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  //     const user = userCredential.user;
+
+  //     // ✅ 2. Get Firebase ID token
+  //     const token = await user.getIdToken();
+
+  //     // ✅ 3. Send token to Spring Boot backend
+  //     const response = await fetch("http://192.168.8.195:8080/api/auth/login", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({ token }),
+  //     });
+
+  //     const status = response.status;
+  //     const text = await response.text();
+
+  //     console.log("Login response status:", status);
+  //     console.log("Login response body:", text);
+
+  //     if (status !== 200) {
+  //       throw new Error("Login failed: " + text);
+  //     }
+
+  //     // ✅ Navigate after successful login
+  //     router.replace("/(role)/(supplier)");
+
+  //   } catch (error) {
+  //     alert("Login failed: " + error.message);
+  //   }
+  // };
+const handleLogin = async () => {
+  try {
+    // ✅ 1. Firebase login
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // ✅ 2. Get Firebase ID token
+    const token = await user.getIdToken();
+
+      // ✅ 3. Send token to Spring Boot backend
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error("Login failed: " + errorText);
+    }
+
+    // ✅ 4. Get user info from backend
+    const data = await response.json();
+    const userRole = data.role?.toLowerCase(); // Example: "SUPPLIER" -> "supplier"
+
+    console.log("User role:", userRole);
+
+    // ✅ 5. Navigate based on role
+    switch (userRole) {
+      case "pending_user":
+        router.replace("/(role)/(pending)");
+        break;
+      case "driver":
+        router.replace("/(role)/(driver)");
+        break;
+        case "supplier":
+        router.replace("/(role)/(supplier)");
+        break;
+      
+      default:
+        alert("Login successful, but unknown role: " + userRole);
+        break;
+    }
+
+  } catch (error) {
+    alert("Login failed: " + error.message);
+    console.error("Login error:", error);
+  }
+};
+
 
   return (
     <ImageBackground
-      source={require('../assets/images/bg.jpg')} // Use your leaf background image
+      source={require("../assets/images/bg.jpg")}
       style={styles.bg}
       resizeMode="cover"
-      filter="brightness(0.5)"
     >
       <View style={styles.card}>
         <Image
-          source={require('../assets/images/logo2.png')} // Use your logo image
+          source={require("../assets/images/logo2.png")}
           style={styles.logo}
         />
         <Text style={styles.title}>Welcome to PureLeaf</Text>
         <Text style={styles.subtitle}>Login</Text>
-        <Text style={styles.label}>Username</Text>
+        <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
-          
-          value={username}
-          onChangeText={setUsername}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Enter email"
           placeholderTextColor="#888"
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
         <Text style={styles.label}>Password</Text>
         <TextInput
           style={styles.input}
-          
           value={password}
           onChangeText={setPassword}
+          placeholder="Enter password"
           placeholderTextColor="#888"
           secureTextEntry
         />
+
         {/* <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity> */}
+
         <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity>
@@ -69,8 +178,9 @@ export default function LoginScreen() {
           <Text style={styles.forgot}>Forgot Password?</Text>
         </TouchableOpacity>
         <View style={styles.signupRow}>
-          <Text style={styles.signupText}>Don't Have an account yet? </Text>
-          <TouchableOpacity onPress={() => router.push('/signup')}>
+          <Text style={styles.signupText}>{"Don't have an account yet?"}</Text>
+
+          <TouchableOpacity onPress={() => router.push("/signup")}>
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>
         </View>
@@ -78,91 +188,90 @@ export default function LoginScreen() {
     </ImageBackground>
   );
 }
-
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   card: {
-    width: '85%',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    width: "85%",
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 24,
     paddingVertical: 32,
     paddingHorizontal: 24,
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 8,
   },
   logo: {
     width: 48,
     height: 48,
     marginBottom: 16,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
-    color: '#222',
+    color: "#222",
   },
   subtitle: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 16,
-    color: '#333',
+    color: "#333",
   },
   label: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     fontSize: 14,
-    color: '#444',
+    color: "#444",
     marginTop: 8,
     marginBottom: 4,
   },
   input: {
-    width: '100%',
-    backgroundColor: '#e6e6e6',
+    width: "100%",
+    backgroundColor: "#e6e6e6",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
     marginBottom: 8,
-    color: '#222',
+    color: "#222",
   },
   loginBtn: {
-    width: '100%',
-    backgroundColor: '#183d2b',
+    width: "100%",
+    backgroundColor: "#183d2b",
     borderRadius: 16,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 16,
     marginBottom: 8,
   },
   loginBtnText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   forgot: {
-    color: '#183d2b',
+    color: "#183d2b",
     marginTop: 4,
     marginBottom: 8,
     fontSize: 14,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
   },
   signupRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 8,
   },
   signupText: {
-    color: '#444',
+    color: "#444",
     fontSize: 14,
   },
   signupLink: {
-    color: '#183d2b',
-    fontWeight: '600',
+    color: "#183d2b",
+    fontWeight: "600",
     fontSize: 14,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
   },
 });
