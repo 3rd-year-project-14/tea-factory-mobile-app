@@ -106,7 +106,9 @@ export default function FertilizerPage() {
           </Text>
           <Text style={styles.dateLabel}>From : 01/05/25</Text>
           <Text style={styles.dateLabel}>To : 01/06/25</Text>
+
           <TouchableOpacity style={styles.viewButton}  onPress={() => router.replace('/usage')}>
+
             <Text style={styles.viewButtonText}>View</Text>
           </TouchableOpacity>
         </View>
