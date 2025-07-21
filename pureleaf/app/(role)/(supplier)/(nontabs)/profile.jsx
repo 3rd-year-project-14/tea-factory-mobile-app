@@ -29,6 +29,8 @@ export default function Profile() {
     homeAddress: 'No 12, Anderson lane , Neluwa',
     phoneNumber: '070 5678432',
     pickUpAddress: 'No 31, Perera lane, Neluwa',
+    landSize: '2 acres',
+    monthlyTeaCapacity: '500 kg',
   });
 
   const handleImagePick = async () => {
@@ -49,7 +51,7 @@ export default function Profile() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
           <Image source={profileImage} style={styles.avatar} />
@@ -66,6 +68,8 @@ export default function Profile() {
             { icon: 'home-outline', label: 'Home', value: formData.homeAddress },
             { icon: 'call-outline', label: 'Phone', value: formData.phoneNumber },
             { icon: 'location-outline', label: 'Pick up', value: formData.pickUpAddress },
+            { icon: 'leaf-outline', label: 'Land Size', value: formData.landSize },
+            { icon: 'trending-up-outline', label: 'Monthly Tea Capacity', value: formData.monthlyTeaCapacity },
           ].map((item, index) => (
             <View style={styles.detailRow} key={index}>
               <Ionicons name={item.icon} size={18} color="#4e6c50" style={styles.icon} />
@@ -147,6 +151,24 @@ export default function Profile() {
                 style={styles.input}
                 value={formData.pickUpAddress}
                 onChangeText={(text) => handleChange('pickUpAddress', text)}
+              />
+            </View>
+
+            <View style={styles.labeledInput}>
+              <Text style={styles.inputLabel}>Land Size</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.landSize}
+                onChangeText={(text) => handleChange('landSize', text)}
+              />
+            </View>
+
+            <View style={styles.labeledInput}>
+              <Text style={styles.inputLabel}>Monthly Tea Capacity</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.monthlyTeaCapacity}
+                onChangeText={(text) => handleChange('monthlyTeaCapacity', text)}
               />
             </View>
 

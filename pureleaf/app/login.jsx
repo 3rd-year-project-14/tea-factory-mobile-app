@@ -27,6 +27,12 @@ export default function LoginScreen() {
     // alert('Login pressed');
     router.replace('/(role)/(inhouse)');
   };
+  const handleLogin3 = () => {
+    // Add your authentication logic here
+    // If successful: router.replace('/(tabs)');
+    // alert('Login pressed');
+    router.replace('/(role)/(manager)');
+  };
 
   return (
     <ImageBackground
@@ -62,7 +68,7 @@ export default function LoginScreen() {
         {/* <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity> */}
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin2}>
+        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity>
         <TouchableOpacity>
