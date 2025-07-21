@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState } from "react";
+import { useEffect } from "react";
 import {
   View,
   Text,
@@ -10,44 +11,236 @@ import {
   Keyboard,
   ImageBackground,
   ScrollView,
-} from 'react-native';
+} from "react-native";
 import { useRouter } from 'expo-router';
+import RBSheet from "react-native-raw-bottom-sheet";
+import { Ionicons } from "@expo/vector-icons";
 
-import RBSheet from 'react-native-raw-bottom-sheet';
-// import { Ionicons } from '@expo/vector-icons'; // Only import if used
+import { BASE_URL } from "../../../constants/ApiConfig";
 
 export default function SupplierHome({ navigation }) {
   const sheetRef = useRef();
-  const simSheetRef = useRef();
+  const simSheetRef = useRef(); // <-- New ref for simulation sheet
   const router = useRouter();
+  
+  const [supplyState, setSupplyState] = useState('none'); // 'none', 'input', 'placed', 'driver', 'factory'
 
-
-  const [supplyState, setSupplyState] = useState('none'); // 'none', 'input', 'placed', 'driver', 'factory', 'factoryReached'
   const [bagCount, setBagCount] = useState('');
   const [lastBagCount, setLastBagCount] = useState(null);
+  const [todayRequestId, setTodayRequestId] = useState(null);
+  const [todayBagCount, setTodayBagCount] = useState(null);
+  const [isLoadingToday, setIsLoadingToday] = useState(true);
 
   const [simPage, setSimPage] = useState(1);
+  // Fetch today's supply request for supplier on mount
+  useEffect(() => {
+    const fetchSupplierRequests = async () => {
+      setIsLoadingToday(true);
+      try {
+        const supplierId = 13; // Use supplierId 13 as per user request
+        const response = await fetch(
+          `http://localhost:8080/api/tea-supply-requests/${supplierId}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          // Assume data is an array of requests
+          if (Array.isArray(data) && data.length > 0) {
+            // Find all requests for today
+            const today = new Date();
+            const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+            const todaysRequests = data.filter((req) => {
+              // Match by supplyDate (sample response uses supplyDate)
+              return req.supplyDate === todayStr;
+            });
+            // Use the last request for today (if any)
+            const latestRequest =
+              todaysRequests.length > 0
+                ? todaysRequests[todaysRequests.length - 1]
+                : null;
+            if (latestRequest && latestRequest.requestId) {
+              setTodayRequestId(latestRequest.requestId);
+              setRequestId(latestRequest.requestId);
+              if (latestRequest.estimatedBagCount !== undefined) {
+                setTodayBagCount(latestRequest.estimatedBagCount);
+                setLastBagCount(latestRequest.estimatedBagCount);
+              }
+              setSupplyState("placed");
+            } else {
+              setTodayRequestId(null);
+              setTodayBagCount(null);
+              setSupplyState("none");
+            }
+          } else {
+            setTodayRequestId(null);
+            setTodayBagCount(null);
+            setSupplyState("none");
+          }
+        } else {
+          setTodayRequestId(null);
+          setTodayBagCount(null);
+          setSupplyState("none");
+        }
+      } catch {
+        setTodayRequestId(null);
+        setTodayBagCount(null);
+        setSupplyState("none");
+      }
+      setIsLoadingToday(false);
+    };
+    fetchSupplierRequests();
+  }, []);
 
-  // Handlers
+  // Open the modal for entering supply
   const openSupplyModal = () => {
-    setSupplyState('input');
-    setBagCount('');
-    sheetRef.current?.open();
+    setSupplyState("input");
+    // If today's request exists, pre-fill bag count
+    if (todayBagCount !== null) {
+      setBagCount(String(todayBagCount));
+      setIsEditing(true);
+    } else {
+      setBagCount("");
+      setIsEditing(false);
+    }
+    sheetRef.current.open();
   };
 
-  const handleConfirm = () => {
-    setLastBagCount(bagCount);
-    setSupplyState('placed');
-    sheetRef.current?.close();
-  };
+  // Backend API response state
+  // Removed API feedback message state
+  // Store created requestId
+  const [requestId, setRequestId] = useState(null);
+  // Track if modal is for editing
+  const [isEditing, setIsEditing] = useState(false);
 
+  // When editing supply (just open modal and set bag count)
   const handleEdit = () => {
-    setSupplyState('input');
-    setBagCount(lastBagCount || '');
-    sheetRef.current?.open();
+    if (!requestId) {
+      return;
+    }
+    setSupplyState("input");
+    setBagCount(lastBagCount || "");
+    setIsEditing(true);
+    sheetRef.current.open();
+  };
+
+  // When confirming supply
+  const handleConfirm = async () => {
+    // Removed console.log for edit mode
+    sheetRef.current.close();
+    // If today's request exists, only allow edit, not create
+    if (todayRequestId || (isEditing && requestId)) {
+      setLastBagCount(bagCount);
+      setSupplyState("placed");
+      try {
+        await fetch(
+          `${BASE_URL}/api/tea-supply-requests/${requestId}/bag-count`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              estimatedBagCount: Number(bagCount),
+            }),
+          }
+        );
+      } catch (_error) {}
+      setIsEditing(false);
+      return;
+    }
+    // Otherwise, create new request and store its id
+    try {
+      const response = await fetch(`${BASE_URL}/api/tea-supply-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          supplierId: 47,
+          estimatedBagCount: Number(bagCount),
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && (data.id || data.requestId || data.request_id)) {
+          // Support 'id', 'requestId', and 'request_id' from backend
+          const newId = data.id || data.requestId || data.request_id;
+          setRequestId(newId); // Store the created request id for future updates
+          setTodayRequestId(newId);
+        }
+        setLastBagCount(bagCount);
+        setTodayBagCount(Number(bagCount));
+        setSupplyState("placed");
+      }
+    } catch (_error) {}
+  };
+
+  // When confirming supply
+  const handleConfirm = async () => {
+    // Removed console.log for edit mode
+    sheetRef.current.close();
+    // If today's request exists, only allow edit, not create
+    if (todayRequestId || (isEditing && requestId)) {
+      setLastBagCount(bagCount);
+      setSupplyState("placed");
+      try {
+        await fetch(
+          `${BASE_URL}/api/tea-supply-requests/${requestId}/bag-count`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              estimatedBagCount: Number(bagCount),
+            }),
+          }
+        );
+      } catch (_error) {}
+      setIsEditing(false);
+      return;
+    }
+    // Otherwise, create new request and store its id
+    try {
+      const response = await fetch(`${BASE_URL}/api/tea-supply-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          supplierId: 47,
+          estimatedBagCount: Number(bagCount),
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && (data.id || data.requestId || data.request_id)) {
+          // Support 'id', 'requestId', and 'request_id' from backend
+          const newId = data.id || data.requestId || data.request_id;
+          setRequestId(newId); // Store the created request id for future updates
+          setTodayRequestId(newId);
+        }
+        setLastBagCount(bagCount);
+        setTodayBagCount(Number(bagCount));
+        setSupplyState("placed");
+      }
+    } catch (_error) {}
   };
 
   const handleCancel = () => {
+    // Delete supply request if exists
+    if (requestId) {
+      fetch(`${BASE_URL}/api/tea-supply-requests/${requestId}`, {
+        method: "DELETE",
+      })
+        .then((res) => {
+          if (res.ok) {
+            setTodayRequestId(null);
+            setTodayBagCount(null);
+          }
+        })
+        .catch(() => {});
+      setRequestId(null);
+    }
     setLastBagCount(null);
     setSupplyState('none');
     sheetRef.current?.close();
@@ -55,10 +248,15 @@ export default function SupplierHome({ navigation }) {
 
   // Modal Content
   const renderModalContent = () => {
-    if (supplyState === 'input') {
+    if (supplyState === "input") {
       return (
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 24 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingBottom: 24,
+          }}
           showsVerticalScrollIndicator={true}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -74,7 +272,10 @@ export default function SupplierHome({ navigation }) {
                 placeholderTextColor="#888"
               />
               <TouchableOpacity
-                style={[styles.sheetBtn, { backgroundColor: bagCount ? '#183d2b' : '#bbb' }]}
+                style={[
+                  styles.sheetBtn,
+                  { backgroundColor: bagCount ? "#183d2b" : "#bbb" },
+                ]}
                 disabled={!bagCount}
                 onPress={handleConfirm}
               >
@@ -85,7 +286,7 @@ export default function SupplierHome({ navigation }) {
         </ScrollView>
       );
     }
-    if (supplyState === 'placed') {
+    if (supplyState === "placed") {
       return (
         <View style={styles.sheetContent}>
           <Text style={styles.reqCardLabel}>Today's Supply :</Text>
@@ -93,25 +294,35 @@ export default function SupplierHome({ navigation }) {
           <Text style={styles.sheetTitle}>
             {lastBagCount} <Text style={styles.supplyUnit}>bags</Text>
           </Text>
-          <View style={{ flexDirection: 'row', marginTop: 16 }}>
+          <View style={{ flexDirection: "row", marginTop: 16 }}>
             <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
+              style={[
+                styles.sheetBtn,
+                {
+                  backgroundColor: requestId ? "#183d2b" : "#bbb",
+                  marginRight: 10,
+                },
+              ]}
               onPress={handleEdit}
+              disabled={!requestId}
             >
               <Text style={styles.sheetBtnText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: '#590804' }]}
+              style={[styles.sheetBtn, { backgroundColor: "#590804" }]}
               onPress={handleCancel}
             >
               <Text style={styles.sheetBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity
-            style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
+            style={[
+              styles.sheetBtn,
+              { backgroundColor: "#fff", marginTop: 18 },
+            ]}
             onPress={() => {
-              setSupplyState('driver');
-              sheetRef.current?.close();
+              setSupplyState("driver");
+              sheetRef.current.close();
             }}
           >
             <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
@@ -220,9 +431,11 @@ export default function SupplierHome({ navigation }) {
     return null;
   };
 
-  const showRequestPlacedCard = (
-    ['placed', 'driver', 'factory', 'factoryReached'].includes(supplyState) && lastBagCount
-  );
+  // Show the "Request Placed" card when supply is placed
+
+  const showRequestPlacedCard =
+    ["placed", "driver", "factory", "factoryReached"].includes(supplyState) &&
+    lastBagCount;
 
   // Simulation Sheet Content
   const renderSimulationSheet = () => (
@@ -311,49 +524,60 @@ export default function SupplierHome({ navigation }) {
           </View>
         </TouchableOpacity>
 
+        {/* API feedback messages removed from UI */}
         {/* Supply Button (hide after confirming) */}
-        {(supplyState === 'none') && (
+        {/* Only show Supply button if no request for today and not loading */}
+        {supplyState === "none" && !todayRequestId && !isLoadingToday && (
           <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
             <Text style={styles.supplyBtnText}>Supply</Text>
           </TouchableOpacity>
         )}
-
         {/* Request Placed Card */}
         {showRequestPlacedCard && (
           <TouchableOpacity
             style={styles.requestPlacedCard}
-            onPress={() => { sheetRef.current?.open(); }}>
+            onPress={() => {
+              // Open the modal in "placed" state for edit/cancel
+              sheetRef.current.open();
+            }}
+          >
             <Text style={styles.reqCardLabel}>Today's Supply :</Text>
-            <Text style={[
-              styles.reqCardDate,
-              supplyState === 'factoryReached' ? { color: 'red' } : null
-            ]}>
-              {supplyState === 'factoryReached'
-                ? 'difference -0.5 kg'
-                : supplyState === 'factory'
-                  ? 'on the way to the factory'
-                  : supplyState === 'driver'
-                    ? 'Driver on the way, get your leaves ready'
-                    : 'Request Placed'}
+            <Text
+              style={[
+                styles.reqCardDate,
+                supplyState === "factoryReached" ? { color: "red" } : null,
+              ]}
+            >
+              {supplyState === "factoryReached"
+                ? "difference -0.5 kg"
+                : supplyState === "factory"
+                ? "on the way to the factory"
+                : supplyState === "driver"
+                ? "Driver on the way, get your leaves ready"
+                : "Request Placed"}
             </Text>
+
             <Text style={styles.reqCardValue}>
-              {supplyState === 'factoryReached'
-                ? '52.9'
-                : supplyState === 'factory'
-                  ? '53.4'
-                  : lastBagCount}
+              {supplyState === "factoryReached"
+                ? "52.9"
+                : supplyState === "factory"
+                ? "53.4"
+                : lastBagCount}
               <Text style={styles.supplyCardUnit}>
-                {supplyState === 'factoryReached' || supplyState === 'factory' ? 'kg' : 'bags'}
+                {supplyState === "factoryReached" || supplyState === "factory"
+                  ? "kg"
+                  : "bags"}
               </Text>
             </Text>
-            {supplyState === 'placed' && (
-              <Text style={styles.requestPlacedEdit}>Tap to Edit or Cancel</Text>
+
+            {supplyState === "placed" && (
+              <Text style={styles.requestPlacedEdit}>
+                Tap to Edit or Cancel
+              </Text>
             )}
           </TouchableOpacity>
         )}
-
       </ScrollView>
-
       {/* Bottom Sheet Modal */}
       <RBSheet
         ref={sheetRef}
@@ -375,9 +599,13 @@ export default function SupplierHome({ navigation }) {
         closeOnDragDown={true}
         closeOnPressMask={true}
         customStyles={{
-          wrapper: { backgroundColor: 'rgba(0,0,0,0.4)' },
-          draggableIcon: { backgroundColor: '#bbb' },
-          container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+          wrapper: { backgroundColor: "rgba(0,0,0,0.4)" },
+          draggableIcon: { backgroundColor: "#bbb" },
+          container: {
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+          },
         }}
         height={340}
       >
@@ -392,90 +620,103 @@ export default function SupplierHome({ navigation }) {
 
 // ...styles unchanged (your existing styles)
 
-
-  
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f8f4' },
+  container: { flex: 1, backgroundColor: "#f4f8f4" },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 40, paddingHorizontal: 20, paddingBottom: 12, backgroundColor: '#fff',
-    elevation: 4, zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 40,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: "#fff",
+    elevation: 4,
+    zIndex: 10,
   },
-  logoRow: { flexDirection: 'row', alignItems: 'center' },
-  brandText: { fontSize: 26, fontWeight: '700', color: '#183d2b', marginLeft: 6, letterSpacing: 1 },
-  logo: { width: 40, height: 40, resizeMode: 'contain' },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  iconBtn: { marginRight: 16, padding: 6, borderRadius: 20, backgroundColor: '#f0f0f0' },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#eee' },
+  logoRow: { flexDirection: "row", alignItems: "center" },
+  brandText: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginLeft: 6,
+    letterSpacing: 1,
+  },
+  logo: { width: 40, height: 40, resizeMode: "contain" },
+  headerRight: { flexDirection: "row", alignItems: "center" },
+  iconBtn: {
+    marginRight: 16,
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: "#f0f0f0",
+  },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#eee" },
 
-heroCard: {
-  marginHorizontal: 5,
-  marginTop: 5,
-  marginBottom: 10,
-  borderRadius: 16,
-  overflow: 'hidden',
-  backgroundColor: '#eaf2ea',
-  elevation: 2,
-  shadowColor: '#000',
-  shadowOpacity: 0.10,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 6,
-},
-heroImg: {
-  width: '100%',
-  height: 150,
-  justifyContent: 'flex-start',
-  alignItems: 'flex-start',
-},
-hello: {
-  fontSize: 26,
-  fontWeight: '700',
-  color: '#fff',
-  marginTop: 20,
-  marginLeft: 20,
-  textShadowColor: '#0006',
-  textShadowOffset: { width: 0, height: 2 },
-  textShadowRadius: 8,
-},
-
+  heroCard: {
+    marginHorizontal: 5,
+    marginTop: 5,
+    marginBottom: 10,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#eaf2ea",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+  },
+  heroImg: {
+    width: "100%",
+    height: 150,
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+  },
+  hello: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#fff",
+    marginTop: 20,
+    marginLeft: 20,
+    textShadowColor: "#0006",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
 
   // Collect your Cash Card (red)
   cashCard: {
-    marginHorizontal:12,
+    marginHorizontal: 12,
     marginTop: 2,
     marginBottom: 10,
-    backgroundColor: '#590804',
+    backgroundColor: "#590804",
     borderRadius: 16,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     elevation: 2,
     borderWidth: 2,
-    borderColor: '#4e4e4e10',
-    shadowColor: '#000',
-    shadowOpacity: 0.10,
+    borderColor: "#4e4e4e10",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
     height: 100,
   },
   cashCardLabel: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   cashCardDate: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 13,
     opacity: 0.85,
-    marginTop:25,
+    marginTop: 25,
   },
   cashCardValue: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginLeft: 16,
   },
 
@@ -483,105 +724,105 @@ hello: {
   supplyCard: {
     marginHorizontal: 18,
     marginTop: 0,
-    backgroundColor: '#eaf2ea',
+    backgroundColor: "#eaf2ea",
     borderRadius: 16,
     padding: 16,
     marginBottom: 10,
     elevation: 1,
     borderWidth: 1,
-    borderColor: '#b0c2b0',
-    shadowColor: '#000',
+    borderColor: "#b0c2b0",
+    shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
   },
   supplyCardLabel: {
-    color: '#222',
+    color: "#222",
     fontSize: 25,
-    fontWeight: '400',
+    fontWeight: "400",
     marginBottom: 1,
   },
   supplyCardDate: {
-    color: '#222',
+    color: "#222",
     fontSize: 13,
     opacity: 0.7,
     marginBottom: 3,
   },
-   supplyCardDate1: {
-    color: '#222',
+  supplyCardDate1: {
+    color: "#222",
     fontSize: 16,
     opacity: 0.7,
     marginBottom: 3,
-    marginTop:10,
+    marginTop: 10,
   },
   supplyCardValue: {
-    color: '#000',
+    color: "#000",
     fontSize: 30,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 2,
-    marginLeft:160,
+    marginLeft: 160,
   },
   supplyCardUnit: {
     fontSize: 16,
-    color: '#888',
-    fontWeight: '400',
+    color: "#888",
+    fontWeight: "400",
   },
 
   // Wallet Card
   walletCard: {
     marginHorizontal: 18,
     marginTop: 0,
-    backgroundColor: '#f7fff7',
+    backgroundColor: "#f7fff7",
     borderRadius: 16,
     padding: 16,
     marginBottom: 18,
     elevation: 1,
     borderWidth: 1,
-    borderColor: '#b0c2b0',
-    shadowColor: '#000',
+    borderColor: "#b0c2b0",
+    shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
   },
   walletCardLabel: {
-    color: '#222',
+    color: "#222",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   walletCardValue: {
-    color: '#183d2b',
+    color: "#183d2b",
     fontSize: 30,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 1,
-    marginLeft:85,
+    marginLeft: 85,
   },
   walletCardValueNum: {
-    color: '#165E52',
+    color: "#165E52",
     fontSize: 30,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   // Supply Button
   supplyBtn: {
-    backgroundColor: '#183d2b',
+    backgroundColor: "#183d2b",
     borderRadius: 40,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginHorizontal: 80,
     marginTop: 2,
     marginBottom: 8,
     elevation: 2,
   },
   supplyBtnText: {
-    color: '#fff',
-    fontSize:23,
-    fontWeight: '400',
+    color: "#fff",
+    fontSize: 23,
+    fontWeight: "400",
     letterSpacing: 1,
   },
 
   requestPlacedCard: {
-    backgroundColor: '#eaf2ea',
+    backgroundColor: "#eaf2ea",
     // borderRadius: 20,
     // marginHorizontal: 40,
     marginTop: 12,
@@ -592,144 +833,164 @@ hello: {
     elevation: 2,
     // borderWidth: 1,
     // borderColor: '#b0c2b0',
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
   },
-   reqCardLabel: {
-    color: '#222',
+  reqCardLabel: {
+    color: "#222",
     fontSize: 25,
-    fontWeight: '400',
+    fontWeight: "400",
     marginBottom: 1,
   },
   reqCardDate: {
-    color: '#222',
+    color: "#222",
     fontSize: 13,
     opacity: 0.7,
-    
   },
   reqCardValue: {
-    color: '#000',
+    color: "#000",
     fontSize: 50,
-    fontWeight: '700',
-    marginLeft:185,
+    fontWeight: "700",
+    marginLeft: 185,
   },
   requestPlacedEdit: {
-    color: '#888',
+    color: "#888",
     fontSize: 13,
-   
   },
 
   driverModal: {
-  alignItems: 'center',
-  justifyContent: 'flex-start',
-  flex: 1,
-  paddingTop: 8,
-},
-driverModalHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  width: '100%',
-  justifyContent: 'space-between',
-  marginBottom: 2,
-},
-driverModalBags: {
-  fontSize: 38,
-  fontWeight: '700',
-  color: '#000',
-  marginLeft: 30,
-},
-driverModalSub: {
-  color: '#222',
-  fontSize: 15,
-  marginBottom: 12,
-  alignSelf: 'flex-start',
-},
-driverCard: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#183d2b',
-  borderBottomLeftRadius:50,
-  borderBottomRightRadius:0,
-  borderTopLeftRadius:50,
-  borderBottomRightRadius:0,
-  padding: 12,
-  marginBottom: 16,
-  width: '100%',
-},
-driverImg: {
-  width: 80,
-  height: 80,
-  borderRadius: 50,
-  backgroundColor: '#ddd',
-},
-driverName: {
-  color: '#fff',
-  fontSize: 20,
-  fontWeight: '700',
-},
-driverStatus: {
-  color: '#fff',
-  fontSize: 14,
-  marginBottom: 2,
-},
-driverVehicle: {
-  color: '#fff',
-  fontSize: 13,
-  marginTop: 2,
-},
-driverModel: {
-  color: '#fff',
-  fontSize: 13,
-  opacity: 0.8,
-},
-pickupLabel: {
-  color: '#222',
-  fontSize: 16,
-  marginTop: 1,
-  marginBottom: 2,
-  fontWeight: '600',
-},
-pickupTime: {
-  color: '#183d2b',
-  fontWeight: 'bold',
-  fontSize: 18,
-},
-callBtn: {
-  backgroundColor: '#183d2b',
-  borderRadius: 30,
-  paddingVertical: 14,
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginTop: 8,
-  marginBottom: 16,
-  width: 120,
-  alignSelf: 'center',
-},
-callBtnText: {
-  color: '#fff',
-  fontSize: 18,
-  fontWeight: '700',
-  letterSpacing: 1,
-  textAlign: 'center',
-},
-
+    alignItems: "center",
+    justifyContent: "flex-start",
+    flex: 1,
+    paddingTop: 8,
+  },
+  driverModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  driverModalBags: {
+    fontSize: 38,
+    fontWeight: "700",
+    color: "#000",
+    marginLeft: 30,
+  },
+  driverModalSub: {
+    color: "#222",
+    fontSize: 15,
+    marginBottom: 12,
+    alignSelf: "flex-start",
+  },
+  driverCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#183d2b",
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 0,
+    borderTopLeftRadius: 50,
+    borderBottomRightRadius: 0,
+    padding: 12,
+    marginBottom: 16,
+    width: "100%",
+  },
+  driverImg: {
+    width: 80,
+    height: 80,
+    borderRadius: 50,
+    backgroundColor: "#ddd",
+  },
+  driverName: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  driverStatus: {
+    color: "#fff",
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  driverVehicle: {
+    color: "#fff",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  driverModel: {
+    color: "#fff",
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  pickupLabel: {
+    color: "#222",
+    fontSize: 16,
+    marginTop: 1,
+    marginBottom: 2,
+    fontWeight: "600",
+  },
+  pickupTime: {
+    color: "#183d2b",
+    fontWeight: "bold",
+    fontSize: 18,
+  },
+  callBtn: {
+    backgroundColor: "#183d2b",
+    borderRadius: 30,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 16,
+    width: 120,
+    alignSelf: "center",
+  },
+  callBtnText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textAlign: "center",
+  },
 
   // Modal styles
-  sheetContent: {  flex: 1 ,alignItems:'center'},
-  sheetTitle: { fontSize: 20, fontWeight: '700', color: '#183d2b', marginBottom: 6 },
-  sheetSubtitle: { fontSize: 15, color: '#666', marginBottom: 18 },
+  sheetContent: { flex: 1, alignItems: "center" },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginBottom: 6,
+  },
+  sheetSubtitle: { fontSize: 15, color: "#666", marginBottom: 18 },
   sheetInput: {
-    width: '90%', backgroundColor: '#D5E6E3', borderRadius: 30, paddingHorizontal: 40, paddingVertical: 10,
-    fontSize: 18, color: '#222', marginBottom: 18, marginTop: 18,textAlign: 'center', fontWeight: '600',
+    width: "90%",
+    backgroundColor: "#D5E6E3",
+    borderRadius: 30,
+    paddingHorizontal: 40,
+    paddingVertical: 10,
+    fontSize: 18,
+    color: "#222",
+    marginBottom: 18,
+    marginTop: 18,
+    textAlign: "center",
+    fontWeight: "600",
   },
   sheetBtn: {
-    minWidth: 120, borderRadius: 18, paddingVertical: 12, alignItems: 'center', marginTop: 8,
+    minWidth: 120,
+    borderRadius: 18,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 8,
   },
-  
-  sheetBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  sheetBtnText1: { color: '#000', fontSize: 17, fontWeight: '700' },
-  supplyCount: { fontSize: 32, fontWeight: '700', color: '#183d2b', marginTop: 12 },
-  supplyUnit: { fontSize: 18, color: '#888', fontWeight: '400' },
+
+  sheetBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  sheetBtnText1: { color: "#000", fontSize: 17, fontWeight: "700" },
+  supplyCount: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginTop: 12,
+  },
+  supplyUnit: { fontSize: 18, color: "#888", fontWeight: "400" },
 });
