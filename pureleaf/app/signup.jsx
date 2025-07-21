@@ -51,7 +51,7 @@ export default function SignupBasicForm() {
 
       // ⿣ Send to Spring Boot backend
       const response = await fetch(
-        "http://192.168.8.195:8080/api/auth/signup",
+        "http://192.168.8.159:8080/api/auth/signup",
         {
           method: "POST",
           headers: {

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase"; // 👈 path to firebase.js
+import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -62,14 +63,14 @@ const handleLogin = async () => {
     // ✅ 2. Get Firebase ID token
     const token = await user.getIdToken();
 
-    // ✅ 3. Send token to Spring Boot backend
-    const response = await fetch("http://192.168.8.195:8080/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token }),
-    });
+      // ✅ 3. Send token to Spring Boot backend
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
 
     if (!response.ok) {
       const errorText = await response.text();
