@@ -801,7 +801,7 @@ advanceRequestBtnText: {
   color: "#fff",
   fontWeight: "700",
   fontSize: 16,
-
+},
   scrollContent: {
   alignItems: "center",
   paddingBottom: 90, 
