@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // --- Custom Tab Bar ---
 function CustomTabBar({ state, descriptors, navigation }) {
-  const tabRoutes = ['index', 'collect'];
+  const tabRoutes = ['index', 'fertilizer'];
   return (
     <View style={styles.tabBar}>
       {state.routes
@@ -34,7 +34,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
           };
 
           let iconName = 'home';
-          if (route.name === 'collect') iconName = 'checkmark-done';
+          if (route.name === 'fertilizer') iconName = 'leaf';
 
           return (
             <TouchableOpacity
@@ -44,14 +44,8 @@ function CustomTabBar({ state, descriptors, navigation }) {
               onPress={onPress}
               style={styles.tab}
             >
-              <Ionicons
-                name={iconName}
-                size={24}
-                color={isFocused ? '#183d2b' : '#888'}
-              />
-              <Text style={[styles.tabLabel, { color: isFocused ? '#183d2b' : '#888' }]}>
-                {label}
-              </Text>
+              <Ionicons name={iconName} size={24} color={isFocused ? '#183d2b' : '#888'} />
+              <Text style={[styles.tabLabel, { color: isFocused ? '#183d2b' : '#888' }]}>{label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -59,7 +53,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
-// --- Header component ---
+// --- Your Manager Header (unchanged) ---
 function ManagerHeader() {
   return (
     <View style={styles.header}>
@@ -85,14 +79,15 @@ function ManagerHeader() {
   );
 }
 
-// --- Main Layout ---
 export default function ManagerLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: '#eaf2ea' }}>
       <ManagerHeader />
       <Tabs
         tabBar={props => <CustomTabBar {...props} />}
-        screenOptions={{ headerShown: false }}
+        screenOptions={{
+          headerShown: false,
+        }}
       >
         <Tabs.Screen
           name="index"
@@ -101,9 +96,9 @@ export default function ManagerLayout() {
           }}
         />
         <Tabs.Screen
-          name="collect"
+          name="fertilizer"
           options={{
-            tabBarLabel: 'Pick Ups',
+            tabBarLabel: 'Fertilizer',
           }}
         />
       </Tabs>
@@ -111,8 +106,8 @@ export default function ManagerLayout() {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
+  // --- Custom tab bar styles ---
   tabBar: {
     position: 'absolute',
     bottom: 18,
@@ -141,6 +136,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
   },
+
+  // --- Header styles (unchanged) ---
   header: {
     flexDirection: 'row',
     alignItems: 'center',
