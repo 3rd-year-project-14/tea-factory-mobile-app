@@ -36,8 +36,8 @@ export default function Index2() {
             }}
             showsVerticalScrollIndicator={false}
           >
-            
-            <Text style={styles.headerText}>Not Approved Yet</Text>
+
+            <Text style={styles.headerText}>Your Request is Not Approved Yet</Text>
             <Text style={styles.subText}>
               Your submission is under review by our team. You will receive a notification once
               your profile has been approved for supplying. Please be patient.

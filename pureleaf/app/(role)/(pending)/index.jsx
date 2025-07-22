@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -12,7 +13,6 @@ import {
   FlatList,
   ScrollView,
   Alert,
-  Keyboard,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import { useRouter } from "expo-router";
@@ -130,6 +130,85 @@ const MapPickerOverlay = ({
 
 // ====== MAIN COMPONENT ======
 export default function PendingSupplyOnboarding() {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [rejectReason, setRejectReason] = useState("");
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const storedUserId = await AsyncStorage.getItem("userId");
+        if (!storedUserId) {
+          setStatus(null);
+          setLoading(false);
+          return;
+        }
+        const response = await fetch(
+          `${BASE_URL}/api/supplier-requests?userId=${storedUserId}`
+        );
+        const data = await response.json();
+        if (!data || (Array.isArray(data) && data.length === 0)) {
+          setStatus(null);
+        } else {
+          const request = Array.isArray(data) ? data[0] : data;
+          if (request.status === "rejected") {
+            setStatus("rejected");
+            setRejectReason(request.rejectReason || "No reason provided.");
+          } else {
+            setStatus("pending");
+          }
+        }
+      } catch (err) {
+        setStatus(null);
+      }
+      setLoading(false);
+    };
+    fetchStatus();
+  }, []);
+  // Add missing handler for NIC submission
+  const [requestStatus, setRequestStatus] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const handleSubmitSupplierRequest = async () => {
+    try {
+      // Always get userId from AsyncStorage before sending supplier request
+      const storedUserId = await AsyncStorage.getItem("userId");
+      const supplierUserId =
+        storedUserId && !isNaN(Number(storedUserId))
+          ? Number(storedUserId)
+          : null;
+      console.log("Supplier userId:", supplierUserId);
+      // Construct FormData for backend submission
+      const supplierRequestData = {
+        factoryId: selectedFactory?.id ? Number(selectedFactory.id) : null,
+        userId: supplierUserId,
+        status: "pending",
+        landSize: landDetails.land_size ? Number(landDetails.land_size) : null,
+        landLocation: landDetails.land_location,
+        pickupLocation: landDetails.pickup_location,
+        monthlySupply: landDetails.monthly_supply
+          ? Number(landDetails.monthly_supply)
+          : null,
+      };
+      const formData = new FormData();
+      formData.append("supplierRequest", JSON.stringify(supplierRequestData));
+      if (nicImage) {
+        formData.append("nicImage", {
+          uri: nicImage.uri,
+          name: nicImage.fileName || "nic.jpg",
+          type: "image/jpeg",
+        });
+      }
+      // Send to backend
+      const response = await fetch(`${BASE_URL}/api/supplier-requests/`, {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+      // Show pending UI after successful request
+      setRequestStatus("pending");
+    } catch (error) {
+      Alert.alert("Error", "Failed to submit supplier request.");
+    }
+  };
   const [factories, setFactories] = useState([]);
   React.useEffect(() => {
     const fetchFactories = async () => {
@@ -216,7 +295,6 @@ export default function PendingSupplyOnboarding() {
   };
 
   function FactoryCarousel() {
-    const carouselWidth = width * 0.85;
     const carouselCardWidth = CARD_WIDTH;
     const marginHorizontal = 8;
     return (
@@ -298,25 +376,126 @@ export default function PendingSupplyOnboarding() {
     );
   }
 
-  // Camera handler for NIC image
+  // Camera/Gallery handler for NIC image
   const handleNicImagePick = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      alert("Camera permission is required!");
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setNicImage(result.assets[0]);
-    }
+    // Ask user to choose Camera or Gallery
+    Alert.alert("NIC Image", "Choose how to upload your NIC image", [
+      {
+        text: "Camera",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") {
+            alert("Camera permission is required!");
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: "images",
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+          });
+          if (!result.canceled && result.assets && result.assets.length > 0) {
+            setNicImage(result.assets[0]);
+          }
+        },
+      },
+      {
+        text: "Gallery",
+        onPress: async () => {
+          const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== "granted") {
+            alert("Gallery permission is required!");
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: "images",
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+          });
+          if (!result.canceled && result.assets && result.assets.length > 0) {
+            setNicImage(result.assets[0]);
+          }
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   function renderStep() {
+    if (loading) {
+      return (
+        <View style={styles.mainCard}>
+          <ScrollView
+            contentContainerStyle={{
+              minHeight: 460,
+              paddingBottom: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.headerText}>Loading...</Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    if (status === "pending") {
+      return (
+        <View style={styles.mainCard}>
+          <ScrollView
+            contentContainerStyle={{
+              minHeight: 460,
+              paddingBottom: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.headerText}>
+              Your Request is Not Approved Yet
+            </Text>
+            <Text style={styles.subText}>
+              Your submission is under review by our team. You will receive a
+              notification once your profile has been approved for supplying.
+              Please be patient.
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    if (status === "rejected") {
+      return (
+        <View style={styles.mainCard}>
+          <ScrollView
+            contentContainerStyle={{
+              minHeight: 460,
+              paddingBottom: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={[styles.headerText, { color: "#b22222" }]}>
+              Your Request Has Been Rejected
+            </Text>
+            <Text
+              style={[
+                styles.subText,
+                { color: "#b22222", fontWeight: "bold", marginTop: 8 },
+              ]}
+            >
+              Reason: {rejectReason}
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    // ...existing code for onboarding steps...
     if (step === 0) {
       return (
         <View>
@@ -346,7 +525,6 @@ export default function PendingSupplyOnboarding() {
                 );
                 setSelectedFactory(factories[idx]);
                 setSelectedFactoryIndex(idx);
-                // Scroll carousel to selected factory
                 setTimeout(() => {
                   carouselRef.current?.scrollToIndex({
                     index: idx,
@@ -363,14 +541,10 @@ export default function PendingSupplyOnboarding() {
               ]}
               disabled={!canProceed}
               onPress={() => {
-                // Prepare supplier request object with selected factory ID
                 const supplierRequest = {
                   factoryId: selectedFactory ? selectedFactory.id : null,
-                  // You can add more fields as you collect them in later steps
                 };
                 console.log("Selected Factory ID:", supplierRequest.factoryId);
-                // Optionally, store in state or pass to next step
-                // setSupplierRequest(supplierRequest); // if you want to keep in state
                 setStep(step + 1);
               }}
             >
@@ -447,14 +621,13 @@ export default function PendingSupplyOnboarding() {
                 ]}
                 disabled={!canProceed}
                 onPress={() => {
-                  // Prepare land details object for backend
-                  const landDetailsRequest = {
+                  // Log land details to console as requested
+                  console.log({
+                    landSize: landDetails.land_size,
                     monthlySupply: landDetails.monthly_supply,
                     pickupLocation: landDetails.pickup_location,
                     landLocation: landDetails.land_location,
-                    landSize: landDetails.land_size,
-                  };
-                  console.log("Entered Land Details:", landDetailsRequest);
+                  });
                   setStep(step + 1);
                 }}
               >
@@ -483,7 +656,8 @@ export default function PendingSupplyOnboarding() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.nextBtn, { marginTop: 14 }]}
-            onPress={() => {
+            onPress={async () => {
+              await handleSubmitSupplierRequest();
               Alert.alert(
                 "Application Submitted",
                 "You will be approved soon and notified via the app.",
@@ -721,17 +895,6 @@ const styles = StyleSheet.create({
   captionTop: {
     position: "absolute",
     top: 12,
-    textAlign: "center",
-  },
-  dropdownSelectedText: {
-    color: "#183d2b",
-    fontWeight: "600",
-    fontSize: 16,
-    textAlign: "center",
-  },
-  captionTop: {
-    position: "absolute",
-    top: 12,
     left: 12,
     right: 12,
     backgroundColor: "rgba(30,70,32,0.65)",
@@ -764,8 +927,6 @@ const styles = StyleSheet.create({
     fontWeight: "400",
   },
   uploadArea: {
-    width: "100%",
-    height: 180,
     width: "100%",
     height: 180,
     borderRadius: 13,

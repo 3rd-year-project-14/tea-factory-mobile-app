@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import {
@@ -13,38 +12,38 @@ import {
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase"; // 👈 path to firebase.js
 import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
 
+  //   const handleLogin = () => {
+  //     // Add your authentication logic here
+  //     // If successful: router.replace('/(tabs)');
+  //     // alert('Login pressed');
+  //     router.replace('/(role)/(supplier)');
+  //   };
 
-//   const handleLogin = () => {
-//     // Add your authentication logic here
-//     // If successful: router.replace('/(tabs)');
-//     // alert('Login pressed');
-//     router.replace('/(role)/(supplier)');
-//   };
-
-//     const handleLogin1 = () => {
-//     // Add your authentication logic here
-//     // If successful: router.replace('/(tabs)');
-//     // alert('Login pressed');
-//     router.replace('/(role)/(driver)');
-//   };
-//   const handleLogin2 = () => {
-//     // Add your authentication logic here
-//     // If successful: router.replace('/(tabs)');
-//     // alert('Login pressed');
-//     router.replace('/(role)/(inhouse)');
-//   };
-//   const handleLogin3 = () => {
-//     // Add your authentication logic here
-//     // If successful: router.replace('/(tabs)');
-//     // alert('Login pressed');
-//     router.replace('/(role)/(manager)');
-//   };
+  //     const handleLogin1 = () => {
+  //     // Add your authentication logic here
+  //     // If successful: router.replace('/(tabs)');
+  //     // alert('Login pressed');
+  //     router.replace('/(role)/(driver)');
+  //   };
+  //   const handleLogin2 = () => {
+  //     // Add your authentication logic here
+  //     // If successful: router.replace('/(tabs)');
+  //     // alert('Login pressed');
+  //     router.replace('/(role)/(inhouse)');
+  //   };
+  //   const handleLogin3 = () => {
+  //     // Add your authentication logic here
+  //     // If successful: router.replace('/(tabs)');
+  //     // alert('Login pressed');
+  //     router.replace('/(role)/(manager)');
+  //   };
 
   // const handleLogin = async () => {
   //   try {
@@ -81,14 +80,19 @@ export default function LoginScreen() {
   //     alert("Login failed: " + error.message);
   //   }
   // };
-const handleLogin = async () => {
-  try {
-    // ✅ 1. Firebase login
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
 
-    // ✅ 2. Get Firebase ID token
-    const token = await user.getIdToken();
+  const handleLogin = async () => {
+    try {
+      // ✅ 1. Firebase login
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      // ✅ 2. Get Firebase ID token
+      const token = await user.getIdToken();
 
       // ✅ 3. Send token to Spring Boot backend
       const response = await fetch(`${BASE_URL}/api/auth/login`, {
@@ -99,40 +103,41 @@ const handleLogin = async () => {
         body: JSON.stringify({ token }),
       });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error("Login failed: " + errorText);
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error("Login failed: " + errorText);
+      }
 
-    // ✅ 4. Get user info from backend
-    const data = await response.json();
-    const userRole = data.role?.toLowerCase(); // Example: "SUPPLIER" -> "supplier"
+      // ✅ 4. Get user info from backend
+      const data = await response.json();
+      const userRole = data.role?.toLowerCase(); // Example: "SUPPLIER" -> "supplier"
+      const userId = data.userId || data.id;
 
-    console.log("User role:", userRole);
+      // Store userId for later use (e.g., supplier request)
+      if (userId) {
+        await AsyncStorage.setItem("userId", String(userId));
+      }
 
-    // ✅ 5. Navigate based on role
-    switch (userRole) {
-      case "pending_user":
-        router.replace("/(role)/(pending)");
-        break;
-      case "driver":
-        router.replace("/(role)/(driver)");
-        break;
+      // ✅ 5. Navigate based on role
+      switch (userRole) {
+        case "pending_user":
+          router.replace("/(role)/(pending)");
+          break;
+        case "driver":
+          router.replace("/(role)/(driver)");
+          break;
         case "supplier":
-        router.replace("/(role)/(supplier)");
-        break;
-      
-      default:
-        alert("Login successful, but unknown role: " + userRole);
-        break;
+          router.replace("/(role)/(supplier)");
+          break;
+        default:
+          alert("Login successful, but unknown role: " + userRole);
+          break;
+      }
+    } catch (error) {
+      alert("Login failed: " + error.message);
+      console.error("Login error:", error);
     }
-
-  } catch (error) {
-    alert("Login failed: " + error.message);
-    console.error("Login error:", error);
-  }
-};
-
+  };
 
   return (
     <ImageBackground

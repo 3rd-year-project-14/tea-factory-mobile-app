@@ -572,40 +572,35 @@ export default function SupplierHome({ navigation }) {
         </View>
 
         <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
-      </View>
 
-      {/* This month's Supply Card */}
-     <TouchableOpacity
-  style={styles.supplyCard}
-  activeOpacity={0.85}
-  onPress={() => {
-    // For Expo Router: navigate to the income analytics page
-    // Example for Expo Router:
-   
-  }}
->
-  <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
-  <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
-  <Text style={styles.supplyCardValue}>
-    1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
-  </Text>
-</TouchableOpacity>
-
-
-      {/* Wallet Card */}
-      <View style={styles.supplyCard}>
-        <Text style={styles.supplyCardLabel}>Wallet</Text>
-        <Text style={styles.walletCardValue}>Rs <Text style={styles.walletCardValueNum}>50,000.00</Text></Text>
-      </View>
-
-      {/* Supply Button (hide after confirming) */}
-       {(supplyState === 'none') &&(
-       
-        <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
-          <Text style={styles.supplyBtnText}>Supply</Text>
+        {/* This month's Supply Card */}
+        <TouchableOpacity
+          style={styles.supplyCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            // For Expo Router: navigate to the income analytics page
+            // Example for Expo Router:
+          }}
+        >
+          <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
+          <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
+          <Text style={styles.supplyCardValue}>
+            1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
+          </Text>
         </TouchableOpacity>
-      )}
 
+        {/* Wallet Card */}
+        <View style={styles.supplyCard}>
+          <Text style={styles.supplyCardLabel}>Wallet</Text>
+          <Text style={styles.walletCardValue}>Rs <Text style={styles.walletCardValueNum}>50,000.00</Text></Text>
+        </View>
+
+        {/* Supply Button (hide after confirming) */}
+        {(supplyState === 'none') && (
+          <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
+            <Text style={styles.supplyBtnText}>Supply</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Collect your Cash Card */}
         <View style={styles.cashCard}>
@@ -616,26 +611,25 @@ export default function SupplierHome({ navigation }) {
           <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
         </View>
 
-       {/* This month's Supply Card */}
-     <TouchableOpacity
-  style={styles.supplyCard}
-  activeOpacity={0.85}
-  onPress={() => {
-    // For Expo Router: navigate to the income analytics page
-    // Example for Expo Router:
-    router.push('/(role)/(supplier)/(nontabs)/income');
-
-  }}
->
-  <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
-  <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
-  <Text style={styles.supplyCardValue}>
-    1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
-  </Text>
-</TouchableOpacity>
+        {/* This month's Supply Card */}
+        <TouchableOpacity
+          style={styles.supplyCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            // For Expo Router: navigate to the income analytics page
+            // Example for Expo Router:
+            router.push('/(role)/(supplier)/(nontabs)/income');
+          }}
+        >
+          <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
+          <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
+          <Text style={styles.supplyCardValue}>
+            1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
+          </Text>
+        </TouchableOpacity>
 
         {/* Wallet Card */}
-        <TouchableOpacity onPress={() => router.push("/wallet")}>
+        <TouchableOpacity onPress={() => router.push("/wallet")}> 
           <View style={styles.supplyCard}>
             <Text style={styles.supplyCardLabel}>Wallet</Text>
             <Text style={styles.walletCardValue}>
