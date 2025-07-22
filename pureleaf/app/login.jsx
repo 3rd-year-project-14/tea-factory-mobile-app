@@ -89,10 +89,13 @@ const handleLogin = async () => {
         router.replace("/(role)/(pending)");
         break;
       case "driver":
-        router.replace("/(role)/(driver)");
+        router.replace("/(role)/(supplier)");
         break;
         case "supplier":
         router.replace("/(role)/(supplier)");
+        break;
+        case "inhouse":
+        router.replace("/(role)/(inhouse)");
         break;
       
       default:
