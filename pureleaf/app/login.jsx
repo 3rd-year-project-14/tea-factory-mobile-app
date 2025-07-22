@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import {
@@ -13,101 +12,90 @@ import {
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase"; // 👈 path to firebase.js
 import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // message object: { type: "error", text: string } or null
+  const [message, setMessage] = useState(null);
+
   const router = useRouter();
 
-  // const handleLogin = async () => {
-  //   try {
-  //     // ✅ 1. Firebase login
-  //     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  //     const user = userCredential.user;
+  const validateForm = () => {
+    setMessage(null);
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  //     // ✅ 2. Get Firebase ID token
-  //     const token = await user.getIdToken();
+    if (!emailPattern.test(email)) {
+      setMessage({ type: "error", text: "Please enter a valid email address." });
+      return false;
+    }
 
-  //     // ✅ 3. Send token to Spring Boot backend
-  //     const response = await fetch("http://192.168.8.195:8080/api/auth/login", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({ token }),
-  //     });
+    if (password.trim().length === 0) {
+      setMessage({ type: "error", text: "Password cannot be empty." });
+      return false;
+    }
 
-  //     const status = response.status;
-  //     const text = await response.text();
+    return true;
+  };
 
-  //     console.log("Login response status:", status);
-  //     console.log("Login response body:", text);
+  const handleLogin = async () => {
+    if (!validateForm()) return;
 
-  //     if (status !== 200) {
-  //       throw new Error("Login failed: " + text);
-  //     }
+    setMessage(null);
 
-  //     // ✅ Navigate after successful login
-  //     router.replace("/(role)/(supplier)");
+    try {
+      // Firebase login
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-  //   } catch (error) {
-  //     alert("Login failed: " + error.message);
-  //   }
-  // };
-const handleLogin = async () => {
-  try {
-    // ✅ 1. Firebase login
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+      // Get Firebase ID token
+      const token = await user.getIdToken();
 
-    // ✅ 2. Get Firebase ID token
-    const token = await user.getIdToken();
-
-      // ✅ 3. Send token to Spring Boot backend
+      // Send token to backend
       const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error("Login failed: " + errorText);
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error("Login failed: " + errorText);
+      }
 
-    // ✅ 4. Get user info from backend
-    const data = await response.json();
-    const userRole = data.role?.toLowerCase(); // Example: "SUPPLIER" -> "supplier"
+      // Get user info from backend
+      const data = await response.json();
+      const userRole = data.role?.toLowerCase();
+      const userId = data.userId || data.id;
 
-    console.log("User role:", userRole);
+      if (userId) {
+        await AsyncStorage.setItem("userId", String(userId));
+      }
 
-    // ✅ 5. Navigate based on role
-    switch (userRole) {
-      case "pending_user":
-        router.replace("/(role)/(pending)");
-        break;
-      case "driver":
-        router.replace("/(role)/(supplier)");
-        break;
+      // Navigate based on role
+      switch (userRole) {
+        case "pending_user":
+          router.replace("/(role)/(pending)");
+          break;
+        case "driver":
+          router.replace("/(role)/(driver)");
+          break;
         case "supplier":
-        router.replace("/(role)/(supplier)");
-        break;
+          router.replace("/(role)/(supplier)");
+          break;
         case "inhouse":
-        router.replace("/(role)/(inhouse)");
-        break;
-      
-      default:
-        alert("Login successful, but unknown role: " + userRole);
-        break;
+          router.replace("/(role)/(inhouse)");
+          break;
+        default:
+          alert("Login successful, but unknown role: " + userRole);
+          break;
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Login failed" });
+      console.error("Login error:", error);
     }
-
-  } catch (error) {
-    alert("Login failed: " + error.message);
-    console.error("Login error:", error);
-  }
-};
+  };
 
   return (
     <ImageBackground
@@ -122,6 +110,14 @@ const handleLogin = async () => {
         />
         <Text style={styles.title}>Welcome to PureLeaf</Text>
         <Text style={styles.subtitle}>Login</Text>
+
+        {/* Inline Message Box */}
+        {message && (
+          <View style={[styles.messageBox, message.type === "error" && styles.errorBox]}>
+            <Text style={styles.messageText}>{message.text}</Text>
+          </View>
+        )}
+
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
@@ -141,6 +137,7 @@ const handleLogin = async () => {
           placeholderTextColor="#888"
           secureTextEntry
         />
+
         <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity>
@@ -149,7 +146,6 @@ const handleLogin = async () => {
         </TouchableOpacity>
         <View style={styles.signupRow}>
           <Text style={styles.signupText}>{"Don't have an account yet?"}</Text>
-
           <TouchableOpacity onPress={() => router.push("/signup")}>
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>
@@ -158,6 +154,7 @@ const handleLogin = async () => {
     </ImageBackground>
   );
 }
+
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
@@ -243,5 +240,23 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
     textDecorationLine: "underline",
+  },
+  messageBox: {
+    width: "100%",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 5,
+    marginBottom: 12,
+    backgroundColor: "#ecad89ff",
+    borderWidth: 1,
+    borderColor: "#d66d30ff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  messageText: {
+    color: "#d63031",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

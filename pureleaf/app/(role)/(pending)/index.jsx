@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -12,71 +13,32 @@ import {
   FlatList,
   ScrollView,
   Alert,
-  Keyboard,
-} from 'react-native';
-import { Dropdown } from 'react-native-element-dropdown';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+} from "react-native";
+import { Dropdown } from "react-native-element-dropdown";
+import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { BASE_URL } from "../../../constants/ApiConfig";
 
-// ----- FACTORIES DATA (UNCHANGED) -----
-const factories = [
-  {
-    label: 'Waulugala Tea factory',
-    value: 'waulugala',
-    image: require('../../../assets/images/fac1.jpg'),
-    group: 'Waulugala Group, Waulugala',
-  },
-  {
-    label: 'Ruhuna Tea Factory',
-    value: 'ruhuna',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'Wattahena, Porawagama',
-  },
-  {
-    label: 'Galaxy Factory',
-    value: 'galaxy',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'Galaxy, Kukulegama',
-  },
-  {
-    label: 'Fortune Tea Factory',
-    value: 'fortune',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'Fortune, Lucky Hills',
-  },
-  {
-    label: 'Duli Ella Tea Factory',
-    value: 'duli',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'Duli Ella, Kosmulla',
-  },
-  {
-    label: 'Devonia Tea Factory',
-    value: 'devonia',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'Devonia Andaradeniya',
-  },
-  {
-    label: 'Batuwagala Tea Factory',
-    value: 'batuwagala',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'New Batuwangala Magama',
-  },
-  {
-    label: 'Andaradeniya Tea Factory',
-    value: 'andaradeniya',
-    image: require('../../../assets/images/fac2.jpg'),
-    group: 'Andaradeniya Group, Andaradeniya',
-  },
-];
+// ----- FACTORIES DATA (FETCHED FROM BACKEND) -----
+const factoryImages = {
+  "Andaradeniya Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Batuwangala Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Ruhuna Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Duli Ella Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Fortune Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Waulugala Tea Factory": require("../../../assets/images/fac1.jpg"),
+  "Williegroup Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Devonia Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Galaxy Tea Factory": require("../../../assets/images/fac2.jpg"),
+  "Nivithigala Tea Factory": require("../../../assets/images/fac2.jpg"),
+};
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.75;
 const CARD_HEIGHT = 150;
 const totalSteps = 4;
-
 
 // ====== MAP PICKER OVERLAY - MOVED OUTSIDE ======
 const MapPickerOverlay = ({
@@ -118,7 +80,7 @@ const MapPickerOverlay = ({
         ref={mapRef}
         style={styles.smallMap}
         region={mapRegion}
-        onPress={e => {
+        onPress={(e) => {
           setTempMarker(e.nativeEvent.coordinate);
           // Don't clear searchQuery here!
         }}
@@ -131,14 +93,18 @@ const MapPickerOverlay = ({
         <TouchableOpacity
           style={styles.confirmButton}
           onPress={() => {
-            if (!tempMarker) return Alert.alert('Select a location', 'Tap on the map or search for a place to select a location.');
+            if (!tempMarker)
+              return Alert.alert(
+                "Select a location",
+                "Tap on the map or search for a place to select a location."
+              );
             const url = `https://maps.google.com/?q=${tempMarker.latitude},${tempMarker.longitude}`;
-            setLandDetails(prev => ({
+            setLandDetails((prev) => ({
               ...prev,
               [mapField]: url,
             }));
             setTempMarker(null);
-            setSearchQuery('');
+            setSearchQuery("");
             setShowMap(false);
             setMapField(null);
           }}
@@ -151,7 +117,7 @@ const MapPickerOverlay = ({
           onPress={() => {
             setShowMap(false);
             setTempMarker(null);
-            setSearchQuery('');
+            setSearchQuery("");
             setMapField(null);
           }}
         >
@@ -162,17 +128,114 @@ const MapPickerOverlay = ({
   );
 };
 
-
 // ====== MAIN COMPONENT ======
 export default function PendingSupplyOnboarding() {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [rejectReason, setRejectReason] = useState("");
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const storedUserId = await AsyncStorage.getItem("userId");
+        if (!storedUserId) {
+          setStatus(null);
+          setLoading(false);
+          return;
+        }
+        const response = await fetch(
+          `${BASE_URL}/api/supplier-requests?userId=${storedUserId}`
+        );
+        const data = await response.json();
+        if (!data || (Array.isArray(data) && data.length === 0)) {
+          setStatus(null);
+        } else {
+          const request = Array.isArray(data) ? data[0] : data;
+          if (request.status === "rejected") {
+            setStatus("rejected");
+            setRejectReason(request.rejectReason || "No reason provided.");
+          } else {
+            setStatus("pending");
+          }
+        }
+      } catch (err) {
+        setStatus(null);
+      }
+      setLoading(false);
+    };
+    fetchStatus();
+  }, []);
+  // Add missing handler for NIC submission
+  const [requestStatus, setRequestStatus] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const handleSubmitSupplierRequest = async () => {
+    try {
+      // Always get userId from AsyncStorage before sending supplier request
+      const storedUserId = await AsyncStorage.getItem("userId");
+      const supplierUserId =
+        storedUserId && !isNaN(Number(storedUserId))
+          ? Number(storedUserId)
+          : null;
+      console.log("Supplier userId:", supplierUserId);
+      // Construct FormData for backend submission
+      const supplierRequestData = {
+        factoryId: selectedFactory?.id ? Number(selectedFactory.id) : null,
+        userId: supplierUserId,
+        status: "pending",
+        landSize: landDetails.land_size ? Number(landDetails.land_size) : null,
+        landLocation: landDetails.land_location,
+        pickupLocation: landDetails.pickup_location,
+        monthlySupply: landDetails.monthly_supply
+          ? Number(landDetails.monthly_supply)
+          : null,
+      };
+      const formData = new FormData();
+      formData.append("supplierRequest", JSON.stringify(supplierRequestData));
+      if (nicImage) {
+        formData.append("nicImage", {
+          uri: nicImage.uri,
+          name: nicImage.fileName || "nic.jpg",
+          type: "image/jpeg",
+        });
+      }
+      // Send to backend
+      const response = await fetch(`${BASE_URL}/api/supplier-requests/`, {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+      // Show pending UI after successful request
+      setRequestStatus("pending");
+    } catch (error) {
+      Alert.alert("Error", "Failed to submit supplier request.");
+    }
+  };
+  const [factories, setFactories] = useState([]);
+  React.useEffect(() => {
+    const fetchFactories = async () => {
+      try {
+        const response = await fetch(`${BASE_URL}/api/factories`);
+        const data = await response.json();
+        // Preserve full factory object and add hardcoded image
+        const mapped = data.map((f) => ({
+          ...f,
+          image:
+            factoryImages[f.name] || require("../../../assets/images/fac2.jpg"),
+        }));
+        setFactories(mapped);
+      } catch (_err) {
+        setFactories([]);
+      }
+    };
+    fetchFactories();
+  }, []);
   const [step, setStep] = useState(0);
-  const [selectedFactory, setSelectedFactory] = useState(null);
+  const [selectedFactory, setSelectedFactory] = useState(null); // will store the factory object
   const [selectedFactoryIndex, setSelectedFactoryIndex] = useState(0);
   const [landDetails, setLandDetails] = useState({
-    land_size: '',
-    land_location: '',
-    pickup_location: '',
-    monthly_supply: '',
+    land_size: "",
+    land_location: "",
+    pickup_location: "",
+    monthly_supply: "",
   });
   const [nicImage, setNicImage] = useState(null);
 
@@ -180,7 +243,7 @@ export default function PendingSupplyOnboarding() {
   const [showMap, setShowMap] = useState(false);
   const [mapField, setMapField] = useState(null);
   const [tempMarker, setTempMarker] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [mapRegion, setMapRegion] = useState({
     latitude: 6.9271,
     longitude: 79.8612,
@@ -194,7 +257,8 @@ export default function PendingSupplyOnboarding() {
 
   let canProceed = false;
   if (step === 0) canProceed = !!selectedFactory;
-  if (step === 1) canProceed = Object.values(landDetails).every((v) => v.trim().length > 0);
+  if (step === 1)
+    canProceed = Object.values(landDetails).every((v) => v.trim().length > 0);
   if (step === 2) canProceed = !!nicImage;
   if (step === 3) canProceed = true;
 
@@ -223,31 +287,32 @@ export default function PendingSupplyOnboarding() {
           mapRef.current.animateToRegion(newRegion, 1000);
         }
       } else {
-        Alert.alert('Location not found', 'Please try a different search term');
+        Alert.alert("Location not found", "Please try a different search term");
       }
-    } catch (error) {
-      Alert.alert('Search Error', 'Unable to search for that location');
+    } catch (_error) {
+      Alert.alert("Search Error", "Unable to search for that location");
     }
   };
 
   function FactoryCarousel() {
-    const carouselWidth = width * 0.85;
     const carouselCardWidth = CARD_WIDTH;
     const marginHorizontal = 8;
     return (
-      <View style={{ alignItems: 'center', width: carouselWidth, marginBottom: 7 }}>
+      <View style={{ alignItems: "center", width: "100%", marginBottom: 7 }}>
         <FlatList
           ref={carouselRef}
           data={factories}
           horizontal
           pagingEnabled
+          snapToInterval={CARD_WIDTH + marginHorizontal * 2}
+          decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           keyExtractor={(_, idx) => idx.toString()}
           renderItem={({ item, index }) => (
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => {
-                setSelectedFactory(item.value);
+                setSelectedFactory(item);
                 setSelectedFactoryIndex(index);
                 carouselRef.current?.scrollToIndex({ index, animated: true });
               }}
@@ -257,92 +322,231 @@ export default function PendingSupplyOnboarding() {
                   height: CARD_HEIGHT,
                   marginHorizontal,
                   borderRadius: 16,
-                  overflow: 'hidden',
-                  backgroundColor: '#f1fcf4',
-                  justifyContent: 'center',
-                  alignItems: 'center',
+                  overflow: "hidden",
+                  backgroundColor: "#f1fcf4",
+                  justifyContent: "center",
+                  alignItems: "center",
                   borderWidth: selectedFactoryIndex === index ? 2 : 0,
-                  borderColor: '#175032',
+                  borderColor: "#175032",
                   elevation: selectedFactoryIndex === index ? 7 : 2,
                 },
               ]}
             >
-              <Image source={item.image} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+              <Image
+                source={item.image}
+                style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+              />
               <View style={styles.captionTop}>
-                <Text style={styles.captionTopText}>{item.label}</Text>
+                <Text style={styles.captionTopText}>{item.name}</Text>
               </View>
               <View style={styles.captionBottom}>
-                <Text style={styles.captionBottomText}>{item.group.split(',')[0]}</Text>
-                <Text style={styles.captionBottomText}>{item.group.split(',')[1]}</Text>
+                {/* Show address/location, split if comma exists */}
+                {item.location &&
+                  item.location.split(",").map((part, i) => (
+                    <Text key={i} style={styles.captionBottomText}>
+                      {part.trim()}
+                    </Text>
+                  ))}
               </View>
             </TouchableOpacity>
           )}
           onMomentumScrollEnd={(e) => {
             const idx = Math.round(
-              e.nativeEvent.contentOffset.x / (carouselCardWidth + marginHorizontal * 2)
+              e.nativeEvent.contentOffset.x /
+                (carouselCardWidth + marginHorizontal * 2)
             );
-            setSelectedFactoryIndex(idx);
-            setSelectedFactory(factories[idx].value);
+            if (factories[idx]) {
+              setSelectedFactoryIndex(idx);
+              setSelectedFactory(factories[idx]); // This updates dropdown selection
+            }
           }}
           getItemLayout={(_, index) => ({
             length: carouselCardWidth + marginHorizontal * 2,
             offset: (carouselCardWidth + marginHorizontal * 2) * index,
             index,
           })}
-          style={{ flexGrow: 0, width: carouselWidth }}
-          contentContainerStyle={{ paddingHorizontal: (carouselWidth - carouselCardWidth) / 2 }}
+          style={{
+            flexGrow: 0,
+            width: CARD_WIDTH + marginHorizontal * 2,
+            alignSelf: "center",
+          }}
+          contentContainerStyle={{}}
         />
       </View>
     );
   }
 
-  // Camera handler for NIC image
+  // Camera/Gallery handler for NIC image
   const handleNicImagePick = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Camera permission is required!');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setNicImage(result.assets[0]);
-    }
+    // Ask user to choose Camera or Gallery
+    Alert.alert("NIC Image", "Choose how to upload your NIC image", [
+      {
+        text: "Camera",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") {
+            alert("Camera permission is required!");
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: "images",
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+          });
+          if (!result.canceled && result.assets && result.assets.length > 0) {
+            setNicImage(result.assets[0]);
+          }
+        },
+      },
+      {
+        text: "Gallery",
+        onPress: async () => {
+          const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== "granted") {
+            alert("Gallery permission is required!");
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: "images",
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+          });
+          if (!result.canceled && result.assets && result.assets.length > 0) {
+            setNicImage(result.assets[0]);
+          }
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   function renderStep() {
+    if (loading) {
+      return (
+        <View style={styles.mainCard}>
+          <ScrollView
+            contentContainerStyle={{
+              minHeight: 460,
+              paddingBottom: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.headerText}>Loading...</Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    if (status === "pending") {
+      return (
+        <View style={styles.mainCard}>
+          <ScrollView
+            contentContainerStyle={{
+              minHeight: 460,
+              paddingBottom: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.headerText}>
+              Your Request is Not Approved Yet
+            </Text>
+            <Text style={styles.subText}>
+              Your submission is under review by our team. You will receive a
+              notification once your profile has been approved for supplying.
+              Please be patient.
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    if (status === "rejected") {
+      return (
+        <View style={styles.mainCard}>
+          <ScrollView
+            contentContainerStyle={{
+              minHeight: 460,
+              paddingBottom: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={[styles.headerText, { color: "#b22222" }]}>
+              Your Request Has Been Rejected
+            </Text>
+            <Text
+              style={[
+                styles.subText,
+                { color: "#b22222", fontWeight: "bold", marginTop: 8 },
+              ]}
+            >
+              Reason: {rejectReason}
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    // ...existing code for onboarding steps...
     if (step === 0) {
       return (
         <View>
-          <Text style={styles.headerText}>Complete your account to start supplying</Text>
-          <Text style={styles.label}>Select the factory you are willing to supply to</Text>
+          <Text style={styles.headerText}>
+            Complete your account to start supplying
+          </Text>
+          <Text style={styles.label}>
+            Select the factory you are willing to supply to
+          </Text>
           <View style={styles.innerSubCard}>
             <Dropdown
               style={styles.dropdown}
               containerStyle={styles.dropdownContainer}
               itemTextStyle={styles.dropdownItemText}
               selectedTextStyle={styles.dropdownSelectedText}
-              data={factories.map((f) => ({ label: f.label, value: f.value }))}
+              data={factories.map((f) => ({
+                label: f.name,
+                value: f.id.toString(),
+              }))}
               labelField="label"
               valueField="value"
               placeholder="Select factory"
-              value={selectedFactory}
+              value={selectedFactory ? selectedFactory.id.toString() : null}
               onChange={(item) => {
-                setSelectedFactory(item.value);
-                const idx = factories.findIndex((f) => f.value === item.value);
+                const idx = factories.findIndex(
+                  (f) => f.id.toString() === item.value
+                );
+                setSelectedFactory(factories[idx]);
                 setSelectedFactoryIndex(idx);
-                carouselRef.current?.scrollToIndex({ index: idx, animated: true });
+                setTimeout(() => {
+                  carouselRef.current?.scrollToIndex({
+                    index: idx,
+                    animated: true,
+                  });
+                }, 100);
               }}
             />
             <FactoryCarousel />
             <TouchableOpacity
-              style={[styles.nextBtn, !canProceed && { backgroundColor: '#ccd9ce' }]}
+              style={[
+                styles.nextBtn,
+                !canProceed && { backgroundColor: "#ccd9ce" },
+              ]}
               disabled={!canProceed}
-              onPress={() => setStep(step + 1)}
+              onPress={() => {
+                const supplierRequest = {
+                  factoryId: selectedFactory ? selectedFactory.id : null,
+                };
+                console.log("Selected Factory ID:", supplierRequest.factoryId);
+                setStep(step + 1);
+              }}
             >
               <Text style={styles.nextBtnText}>Next</Text>
             </TouchableOpacity>
@@ -354,10 +558,23 @@ export default function PendingSupplyOnboarding() {
       return (
         <View>
           <Text style={styles.headerText}>Factory & Land Details</Text>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 50, width: '100%' }} keyboardShouldPersistTaps="handled">
-            {['Land Size (acres)', 'Land Location', 'Pickup Location', 'Monthly Supply (kg)'].map((label, i) => {
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingBottom: 50,
+              width: "100%",
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {[
+              "Land Size (acres)",
+              "Land Location",
+              "Pickup Location",
+              "Monthly Supply (kg)",
+            ].map((label, i) => {
               const key = Object.keys(landDetails)[i];
-              const isLocation = key === 'land_location' || key === 'pickup_location';
+              const isLocation =
+                key === "land_location" || key === "pickup_location";
               return (
                 <React.Fragment key={i}>
                   <Text style={styles.label}>{label}</Text>
@@ -374,15 +591,21 @@ export default function PendingSupplyOnboarding() {
                       style={[styles.input, isLocation && styles.locationInput]}
                       value={landDetails[key]}
                       editable={!isLocation}
-                      pointerEvents={isLocation ? 'none' : 'auto'}
-                      onChangeText={t =>
-                        setLandDetails(prev => ({
+                      pointerEvents={isLocation ? "none" : "auto"}
+                      onChangeText={(t) =>
+                        setLandDetails((prev) => ({
                           ...prev,
                           [key]: t,
                         }))
                       }
-                      placeholder={isLocation ? `Tap to select ${label}` : `Enter ${label}`}
-                      keyboardType={label.includes('Size') || label.includes('Supply') ? 'numeric' : 'default'}
+                      placeholder={
+                        isLocation ? `Tap to select ${label}` : `Enter ${label}`
+                      }
+                      keyboardType={
+                        label.includes("Size") || label.includes("Supply")
+                          ? "numeric"
+                          : "default"
+                      }
                       placeholderTextColor="#888"
                     />
                   </TouchableOpacity>
@@ -390,11 +613,23 @@ export default function PendingSupplyOnboarding() {
               );
             })}
 
-            {(step > 0 && step < totalSteps - 1) && (
+            {step > 0 && step < totalSteps - 1 && (
               <TouchableOpacity
-                style={[styles.nextBtn, !canProceed && { backgroundColor: '#ccd9ce' }]}
+                style={[
+                  styles.nextBtn,
+                  !canProceed && { backgroundColor: "#ccd9ce" },
+                ]}
                 disabled={!canProceed}
-                onPress={() => setStep(step + 1)}
+                onPress={() => {
+                  // Log land details to console as requested
+                  console.log({
+                    landSize: landDetails.land_size,
+                    monthlySupply: landDetails.monthly_supply,
+                    pickupLocation: landDetails.pickup_location,
+                    landLocation: landDetails.land_location,
+                  });
+                  setStep(step + 1);
+                }}
               >
                 <Text style={styles.nextBtnText}>Next</Text>
               </TouchableOpacity>
@@ -421,14 +656,15 @@ export default function PendingSupplyOnboarding() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.nextBtn, { marginTop: 14 }]}
-            onPress={() => {
+            onPress={async () => {
+              await handleSubmitSupplierRequest();
               Alert.alert(
-                'Application Submitted',
-                'You will be approved soon and notified via the app.',
+                "Application Submitted",
+                "You will be approved soon and notified via the app.",
                 [
                   {
-                    text: 'OK',
-                    onPress: () => router.replace('/(nontabs)'),
+                    text: "OK",
+                    onPress: () => router.replace("/(nontabs)"),
                   },
                 ],
                 { cancelable: false }
@@ -444,13 +680,14 @@ export default function PendingSupplyOnboarding() {
       return (
         <View style={styles.innerCard}>
           <Image
-            source={require('../../../assets/images/fac1.jpg')}
+            source={require("../../../assets/images/fac1.jpg")}
             style={{ width: 90, height: 90, marginBottom: 24 }}
             resizeMode="contain"
           />
           <Text style={styles.headerText}>Thank you!</Text>
           <Text style={styles.subText}>
-            Your information has been submitted. You will be notified soon about the confirmation.
+            Your information has been submitted. You will be notified soon about
+            the confirmation.
           </Text>
         </View>
       );
@@ -463,7 +700,7 @@ export default function PendingSupplyOnboarding() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.greetingCard}>
           <ImageBackground
-            source={require('../../../assets/images/hero.jpg')}
+            source={require("../../../assets/images/hero.jpg")}
             style={styles.greetingImage}
             imageStyle={styles.greetingImageBorder}
           >
@@ -515,258 +752,245 @@ export default function PendingSupplyOnboarding() {
 
 // ------- THE STYLES (UNCHANGED) -------
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: '#eaf2ea' },
-  safeArea: { flex: 1, alignItems: 'center' },
+  bg: { flex: 1, backgroundColor: "#eaf2ea" },
+  safeArea: { flex: 1, alignItems: "center" },
   greetingCard: {
-    width: '97%',
+    width: "97%",
     borderRadius: 22,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginTop: 18,
     marginBottom: 12,
-    alignSelf: 'center',
+    alignSelf: "center",
     elevation: 5,
-    backgroundColor: '#eaeaeae0',
+    backgroundColor: "#eaeaeae0",
   },
-  greetingImage: { width: '100%', height: 100, justifyContent: 'center' },
+  greetingImage: { width: "100%", height: 100, justifyContent: "center" },
   greetingImageBorder: { borderRadius: 22 },
   greetingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(40,64,35,0.22)',
+    backgroundColor: "rgba(40,64,35,0.22)",
     borderRadius: 22,
     paddingHorizontal: 20,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   greetingText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 24,
-    fontWeight: '700',
-    textShadowColor: '#222c',
+    fontWeight: "700",
+    textShadowColor: "#222c",
     textShadowRadius: 7,
     marginLeft: 6,
   },
   mainCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 23,
-    width: '97%',
-    alignSelf: 'center',
+    width: "97%",
+    alignSelf: "center",
     elevation: 4,
     marginBottom: 20,
   },
   innerCard: {
-    width: '97%',
-    backgroundColor: '#f0fdf4',
+    width: "97%",
+    backgroundColor: "#f0fdf4",
     borderRadius: 16,
     padding: 16,
     marginTop: 10,
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
   },
   innerSubCard: {
-    width: '100%',
-    backgroundColor: '#f8fafb',
+    width: "100%",
+    backgroundColor: "#f8fafb",
     borderRadius: 18,
     paddingVertical: 14,
     paddingHorizontal: 12,
     marginTop: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 2,
     marginBottom: 6,
     borderWidth: 0.5,
-    borderColor: '#dde5db',
-    textAlign: 'center',
+    borderColor: "#dde5db",
+    textAlign: "center",
   },
   headerText: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#183d2b',
+    fontWeight: "700",
+    color: "#183d2b",
     marginBottom: 6,
-    textAlign: 'center',
+    textAlign: "center",
   },
   subText: {
     fontSize: 16,
-    fontWeight: '400',
-    color: '#365948',
+    fontWeight: "400",
+    color: "#365948",
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
     marginHorizontal: 10,
   },
   label: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     fontSize: 15,
-    color: '#1a290b',
+    color: "#1a290b",
     marginTop: 10,
     marginBottom: 2,
-    fontWeight: '500',
+    fontWeight: "500",
     marginLeft: 6,
-    textAlign: 'center',
+    textAlign: "center",
   },
   input: {
-    width: '100%',
-    backgroundColor: '#ecf5ef',
+    width: "100%",
+    backgroundColor: "#ecf5ef",
     borderRadius: 16,
     paddingHorizontal: 15,
     paddingVertical: 8,
     fontSize: 16,
     marginBottom: 7,
-    color: '#24411b',
+    color: "#24411b",
     borderWidth: 1,
-    borderColor: '#bdd7c4',
+    borderColor: "#bdd7c4",
   },
   locationInput: {
-    backgroundColor: '#f0f8f0',
-    borderColor: '#175032',
+    backgroundColor: "#f0f8f0",
+    borderColor: "#175032",
     borderWidth: 1.5,
   },
   dropdown: {
-    width: '96%',
+    width: "96%",
     marginBottom: 12,
     marginTop: 6,
-    backgroundColor: '#f3f9f3',
+    backgroundColor: "#f3f9f3",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#175032',
+    borderColor: "#175032",
   },
   dropdownContainer: {
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: '#175032',
+    borderColor: "#175032",
     marginTop: 4,
     maxHeight: 180,
   },
   dropdownItemText: {
-    color: '#153823',
+    color: "#153823",
     fontSize: 16,
     paddingVertical: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   dropdownSelectedText: {
-    color: '#183d2b',
-    fontWeight: '600',
+    color: "#183d2b",
+    fontWeight: "600",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   captionTop: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(30,70,32,0.65)',
+    backgroundColor: "rgba(30,70,32,0.65)",
     borderRadius: 16,
     paddingVertical: 5,
     paddingHorizontal: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   captionTopText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
   },
   captionBottom: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 11,
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(30,40,40,0.60)',
+    backgroundColor: "rgba(30,40,40,0.60)",
     borderRadius: 13,
     paddingVertical: 4,
     paddingHorizontal: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   captionBottomText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 15,
-    textAlign: 'center',
-    fontWeight: '400',
+    textAlign: "center",
+    fontWeight: "400",
   },
   uploadArea: {
-    width: '100%',
-    height: 180,
-    backgroundColor: '#eef5ef',
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#bdd7c4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 22,
-    marginBottom: 18,
-  },
-  uploadPrompt: { color: '#888', fontSize: 16 },
-  nicImage: {
-    width: '100%',
+    width: "100%",
     height: 180,
     borderRadius: 13,
-    resizeMode: 'cover',
+    resizeMode: "cover",
   },
   dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   dot: { width: 12, height: 12, borderRadius: 6, margin: 6 },
-  dotActive: { backgroundColor: '#175032' },
-  dotInactive: { backgroundColor: '#c4d3bd' },
+  dotActive: { backgroundColor: "#175032" },
+  dotInactive: { backgroundColor: "#c4d3bd" },
   nextBtn: {
-    width: '84%',
-    backgroundColor: '#175032',
+    width: "84%",
+    backgroundColor: "#175032",
     borderRadius: 16,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 12,
-    alignSelf: 'center',
+    alignSelf: "center",
     elevation: 2,
   },
   nextBtnText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.3,
   },
   mapOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     zIndex: 100,
   },
   searchContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 15,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: "#ddd",
     elevation: 2,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
   },
   searchButton: {
-    backgroundColor: '#175032',
+    backgroundColor: "#175032",
     borderRadius: 8,
     paddingHorizontal: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   searchButtonText: {
     fontSize: 18,
@@ -774,38 +998,38 @@ const styles = StyleSheet.create({
   mapControls: {
     marginTop: 18,
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 10,
   },
   confirmButton: {
-    backgroundColor: '#175032',
+    backgroundColor: "#175032",
     borderRadius: 12,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
   },
   confirmButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     fontSize: 16,
   },
   cancelButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: 12,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
   },
   cancelButtonText: {
-    color: '#666',
-    fontWeight: '600',
+    color: "#666",
+    fontWeight: "600",
     fontSize: 16,
   },
   smallMap: {
     width: 320,
     height: 220,
     borderRadius: 16,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
 });
