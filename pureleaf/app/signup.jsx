@@ -13,9 +13,9 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 import { createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { auth } from "../firebase"; // adjust path if firebase.js is elsewhere
+import { Feather } from "@expo/vector-icons";
 
 export default function SignupBasicForm() {
   const [form, setForm] = useState({
@@ -28,8 +28,9 @@ export default function SignupBasicForm() {
     confirmpw: "",
   });
 
-  // message object: { type: "error" | "success", text: string } or null
   const [message, setMessage] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const router = useRouter();
   const allFieldsFilled = Object.values(form).every((v) => v.trim().length > 0);
@@ -41,12 +42,12 @@ export default function SignupBasicForm() {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!nicPattern.test(form.nic)) {
-      setMessage({ type: "error", text: "Please enter a valid NIC number." });
+      setMessage({ type: "error", text: "NIC should be 9 digits ending with 'V/v' or 12 digits." });
       return false;
     }
 
     if (!phonePattern.test(form.phone)) {
-      setMessage({ type: "error", text: "Please enter a valid phone number." });
+      setMessage({ type: "error", text: "Phone number should be exactly 10 digits." });
       return false;
     }
 
@@ -65,7 +66,6 @@ export default function SignupBasicForm() {
 
   const handleSignup = async () => {
     if (!validateForm()) return;
-
     setMessage(null);
 
     try {
@@ -77,22 +77,18 @@ export default function SignupBasicForm() {
       const user = userCred.user;
       const token = await getIdToken(user);
 
-      const response = await fetch(`${BASE_URL}/api/auth/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            token,
-            name: form.fullName,
-            nic: form.nic,
-            contactNo: form.phone,
-            email: form.email,
-            address: form.address,
-          }),
-        }
-      );
+      const response = await fetch("http://192.168.33.92:8080/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          name: form.fullName,
+          nic: form.nic,
+          contactNo: form.phone,
+          email: form.email,
+          address: form.address,
+        }),
+      });
 
       const result = await response.text();
 
@@ -132,7 +128,6 @@ export default function SignupBasicForm() {
               />
               <Text style={styles.title}>Tell us about you!</Text>
 
-              {/* Message Box */}
               {message && (
                 <View
                   style={[
@@ -192,30 +187,37 @@ export default function SignupBasicForm() {
               />
 
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                value={form.password}
-                onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
-                placeholder="Password"
-                placeholderTextColor="#888"
-                secureTextEntry={true}
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={form.password}
+                  onChangeText={(t) => setForm((f) => ({ ...f, password: t }))}
+                  placeholder="Password"
+                  placeholderTextColor="#888"
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
+                  <Feather name={showPassword ? "eye" : "eye-off"} size={19} color="#555" />
+                </TouchableOpacity>
+              </View>
 
               <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                value={form.confirmpw}
-                onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
-                placeholder="Confirm password"
-                placeholderTextColor="#888"
-                secureTextEntry={true}
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={form.confirmpw}
+                  onChangeText={(t) => setForm((f) => ({ ...f, confirmpw: t }))}
+                  placeholder="Confirm password"
+                  placeholderTextColor="#888"
+                  secureTextEntry={!showConfirmPassword}
+                />
+                <TouchableOpacity onPress={() => setShowConfirmPassword((prev) => !prev)}>
+                  <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={19} color="#555" />
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
-                style={[
-                  styles.nextBtn,
-                  !allFieldsFilled && { backgroundColor: "#bbb" },
-                ]}
+                style={[styles.nextBtn, !allFieldsFilled && { backgroundColor: "#bbb" }]}
                 disabled={!allFieldsFilled}
                 onPress={handleSignup}
               >
@@ -281,7 +283,6 @@ const styles = StyleSheet.create({
     color: "#222",
     textAlign: "center",
   },
-
   messageBox: {
     width: "100%",
     paddingVertical: 12,
@@ -312,7 +313,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-
   label: {
     alignSelf: "flex-start",
     fontSize: 15,
@@ -331,6 +331,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     color: "#222",
   },
+  passwordContainer: {
+    width: "100%",
+    backgroundColor: "#dedede",
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    height: 43, // MATCH the height with the default input box
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#222",
+  },
+
   nextBtn: {
     width: "85%",
     backgroundColor: "#183d2b",
