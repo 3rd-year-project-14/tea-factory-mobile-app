@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
@@ -38,7 +39,7 @@ const factoryImages = {
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.75;
 const CARD_HEIGHT = 150;
-const totalSteps = 4;
+const totalSteps = 3;
 
 // ====== MAP PICKER OVERLAY - MOVED OUTSIDE ======
 const MapPickerOverlay = ({
@@ -167,7 +168,9 @@ export default function PendingSupplyOnboarding() {
   // Add missing handler for NIC submission
   const [requestStatus, setRequestStatus] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const handleSubmitSupplierRequest = async () => {
+    setSubmitting(true);
     try {
       // Always get userId from AsyncStorage before sending supplier request
       const storedUserId = await AsyncStorage.getItem("userId");
@@ -208,6 +211,7 @@ export default function PendingSupplyOnboarding() {
     } catch (error) {
       Alert.alert("Error", "Failed to submit supplier request.");
     }
+    setSubmitting(false);
   };
   const [factories, setFactories] = useState([]);
   React.useEffect(() => {
@@ -557,7 +561,7 @@ export default function PendingSupplyOnboarding() {
     if (step === 1) {
       return (
         <View>
-          <Text style={styles.headerText}>Factory & Land Details</Text>
+          <Text style={styles.headerText}>Land Details</Text>
           <ScrollView
             contentContainerStyle={{
               flexGrow: 1,
@@ -613,27 +617,48 @@ export default function PendingSupplyOnboarding() {
               );
             })}
 
-            {step > 0 && step < totalSteps - 1 && (
+            {/* Back and Next buttons */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 10,
+              }}
+            >
               <TouchableOpacity
                 style={[
                   styles.nextBtn,
-                  !canProceed && { backgroundColor: "#ccd9ce" },
+                  { backgroundColor: "#ccd9ce", flex: 1, marginRight: 8 },
                 ]}
-                disabled={!canProceed}
-                onPress={() => {
-                  // Log land details to console as requested
-                  console.log({
-                    landSize: landDetails.land_size,
-                    monthlySupply: landDetails.monthly_supply,
-                    pickupLocation: landDetails.pickup_location,
-                    landLocation: landDetails.land_location,
-                  });
-                  setStep(step + 1);
-                }}
+                onPress={() => setStep(step - 1)}
               >
-                <Text style={styles.nextBtnText}>Next</Text>
+                <Text style={[styles.nextBtnText, { color: "#175032" }]}>
+                  Back
+                </Text>
               </TouchableOpacity>
-            )}
+              {step > 0 && step < totalSteps - 1 && (
+                <TouchableOpacity
+                  style={[
+                    styles.nextBtn,
+                    { flex: 1, marginLeft: 8 },
+                    !canProceed && { backgroundColor: "#ccd9ce" },
+                  ]}
+                  disabled={!canProceed}
+                  onPress={() => {
+                    // Log land details to console as requested
+                    console.log({
+                      landSize: landDetails.land_size,
+                      monthlySupply: landDetails.monthly_supply,
+                      pickupLocation: landDetails.pickup_location,
+                      landLocation: landDetails.land_location,
+                    });
+                    setStep(step + 1);
+                  }}
+                >
+                  <Text style={styles.nextBtnText}>Next</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </ScrollView>
         </View>
       );
@@ -647,6 +672,7 @@ export default function PendingSupplyOnboarding() {
             style={styles.uploadArea}
             onPress={handleNicImagePick}
             activeOpacity={0.85}
+            disabled={submitting}
           >
             {nicImage ? (
               <Image source={{ uri: nicImage.uri }} style={styles.nicImage} />
@@ -654,44 +680,92 @@ export default function PendingSupplyOnboarding() {
               <Text style={styles.uploadPrompt}>Tap to upload NIC</Text>
             )}
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.nextBtn, { marginTop: 14 }]}
-            onPress={async () => {
-              await handleSubmitSupplierRequest();
-              Alert.alert(
-                "Application Submitted",
-                "You will be approved soon and notified via the app.",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => router.replace("/(nontabs)"),
-                  },
-                ],
-                { cancelable: false }
-              );
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginTop: 14,
             }}
           >
-            <Text style={styles.nextBtnText}>Finish</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.nextBtn,
+                { backgroundColor: "#ccd9ce", flex: 1, marginRight: 8 },
+              ]}
+              onPress={() => setStep(step - 1)}
+              disabled={submitting}
+            >
+              <Text style={[styles.nextBtnText, { color: "#175032" }]}>
+                Back
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.nextBtn,
+                { flex: 1, marginLeft: 8 },
+                submitting && { opacity: 0.7 },
+              ]}
+              onPress={async () => {
+                if (submitting) return;
+                await handleSubmitSupplierRequest();
+                Toast.show({
+                  type: "success",
+                  text1:
+                    "Application Submitted! You will be approved soon.",
+                  position: "center",
+                  visibilityTime: 3500,
+                  onHide: () => router.replace("/(nontabs)"),
+                });
+                setTimeout(() => {
+                  router.replace("/(nontabs)");
+                }, 3500);
+              }}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      borderWidth: 3,
+                      borderColor: "#fff",
+                      borderTopColor: "#175032",
+                      marginRight: 8,
+                      borderStyle: "solid",
+                      borderLeftColor: "#175032",
+                      borderBottomColor: "#175032",
+                      borderRightColor: "#fff",
+                    }}
+                  >
+                    <View
+                      style={{
+                        position: "absolute",
+                        width: "100%",
+                        height: "100%",
+                      }}
+                    >
+                      {/* Simple spinner animation using React Native's Animated API can be added for better effect */}
+                    </View>
+                  </View>
+                  <Text style={styles.nextBtnText}>Submitting...</Text>
+                </View>
+              ) : (
+                <Text style={styles.nextBtnText}>Finish</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
-    if (step === 3) {
-      return (
-        <View style={styles.innerCard}>
-          <Image
-            source={require("../../../assets/images/fac1.jpg")}
-            style={{ width: 90, height: 90, marginBottom: 24 }}
-            resizeMode="contain"
-          />
-          <Text style={styles.headerText}>Thank you!</Text>
-          <Text style={styles.subText}>
-            Your information has been submitted. You will be notified soon about
-            the confirmation.
-          </Text>
-        </View>
-      );
-    }
+    // Removed step 3 (Thank you step) as it is not needed
     return null;
   }
 
@@ -745,6 +819,7 @@ export default function PendingSupplyOnboarding() {
             />
           </ScrollView>
         </View>
+        <Toast />
       </SafeAreaView>
     </View>
   );
@@ -752,6 +827,19 @@ export default function PendingSupplyOnboarding() {
 
 // ------- THE STYLES (UNCHANGED) -------
 const styles = StyleSheet.create({
+  nicImage: {
+    width: "100%",
+    height: 180,
+    borderRadius: 13,
+    resizeMode: "cover",
+  },
+  uploadPrompt: {
+    color: "#175032",
+    fontSize: 17,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 70,
+  },
   bg: { flex: 1, backgroundColor: "#eaf2ea" },
   safeArea: { flex: 1, alignItems: "center" },
   greetingCard: {
