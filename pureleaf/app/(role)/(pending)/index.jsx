@@ -19,7 +19,7 @@ import { Dropdown } from "react-native-element-dropdown";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE, Polygon } from "react-native-maps";
 import { BASE_URL } from "../../../constants/ApiConfig";
 
 // ----- FACTORIES DATA (FETCHED FROM BACKEND) -----
@@ -56,6 +56,7 @@ const MapPickerOverlay = ({
   mapField,
   setMapField,
   setLandDetails,
+  bounds,
 }) => {
   if (!showMap) return null;
   return (
@@ -83,14 +84,26 @@ const MapPickerOverlay = ({
         region={mapRegion}
         onPress={(e) => {
           setTempMarker(e.nativeEvent.coordinate);
-          // Don't clear searchQuery here!
         }}
       >
         {tempMarker && <Marker coordinate={tempMarker} />}
+        {/* Only show marker, no bounding box */}
       </MapView>
 
       {/* Control Buttons */}
       <View style={styles.mapControls}>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => {
+            setShowMap(false);
+            setTempMarker(null);
+            setSearchQuery("");
+            setMapField(null);
+          }}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.confirmButton}
           onPress={() => {
@@ -111,18 +124,6 @@ const MapPickerOverlay = ({
           }}
         >
           <Text style={styles.confirmButtonText}>Confirm Location</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => {
-            setShowMap(false);
-            setTempMarker(null);
-            setSearchQuery("");
-            setMapField(null);
-          }}
-        >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -209,7 +210,18 @@ export default function PendingSupplyOnboarding() {
       // Show pending UI after successful request
       setRequestStatus("pending");
     } catch (error) {
-      Alert.alert("Error", "Failed to submit supplier request.");
+      Toast.show({
+        type: "error",
+        text1: "Failed to submit request. Try Again",
+        position: "center",
+        visibilityTime: 4000,
+        props: {
+          onPress: () => {
+            setStep(0);
+            Toast.hide();
+          },
+        },
+      });
     }
     setSubmitting(false);
   };
@@ -254,6 +266,7 @@ export default function PendingSupplyOnboarding() {
     latitudeDelta: 0.015,
     longitudeDelta: 0.015,
   });
+  const [bounds, setBounds] = useState(null);
 
   const carouselRef = useRef();
   const mapRef = useRef();
@@ -266,35 +279,64 @@ export default function PendingSupplyOnboarding() {
   if (step === 2) canProceed = !!nicImage;
   if (step === 3) canProceed = true;
 
-  // Search for places using expo-location geocoding
+  // Search for places using Google Maps Geocoding API (for bounds)
   const searchLocation = async () => {
     if (!searchQuery.trim()) return;
     try {
-      const result = await Location.geocodeAsync(searchQuery);
-      if (result && result.length > 0) {
-        const location = result[0];
-        const newRegion = {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        };
-
-        setMapRegion(newRegion);
-        setTempMarker({
-          latitude: location.latitude,
-          longitude: location.longitude,
+      // Use Google Maps Geocoding API for more details
+      const apiKey = "AIzaSyCC1yw0F2ZC9dCYPDmcEdm3VAU6UqTYefo"; // <-- User's provided key
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchQuery)}&key=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.status === "OK" && data.results.length > 0) {
+        const result = data.results[0];
+        const location = result.geometry.location;
+        const bounds = result.geometry.bounds || result.geometry.viewport;
+        let latitudeDelta = 0.05;
+        let longitudeDelta = 0.05;
+        if (bounds) {
+          latitudeDelta =
+            Math.abs(bounds.northeast.lat - bounds.southwest.lat) * 1.2;
+          longitudeDelta =
+            Math.abs(bounds.northeast.lng - bounds.southwest.lng) * 1.2;
+        }
+        setMapRegion({
+          latitude: location.lat,
+          longitude: location.lng,
+          latitudeDelta,
+          longitudeDelta,
         });
-
-        // Animate to the searched location
+        setTempMarker({
+          latitude: location.lat,
+          longitude: location.lng,
+        });
+        if (bounds) {
+          setBounds({
+            northeast: bounds.northeast,
+            southwest: bounds.southwest,
+          });
+        } else {
+          setBounds(null);
+        }
+        // Animate to the searched location with calculated zoom
         if (mapRef.current) {
-          mapRef.current.animateToRegion(newRegion, 1000);
+          mapRef.current.animateToRegion(
+            {
+              latitude: location.lat,
+              longitude: location.lng,
+              latitudeDelta,
+              longitudeDelta,
+            },
+            1000
+          );
         }
       } else {
         Alert.alert("Location not found", "Please try a different search term");
+        setBounds(null);
       }
     } catch (_error) {
       Alert.alert("Search Error", "Unable to search for that location");
+      setBounds(null);
     }
   };
 
@@ -579,6 +621,7 @@ export default function PendingSupplyOnboarding() {
               const key = Object.keys(landDetails)[i];
               const isLocation =
                 key === "land_location" || key === "pickup_location";
+              const hasValue = landDetails[key].trim().length > 0;
               return (
                 <React.Fragment key={i}>
                   <Text style={styles.label}>{label}</Text>
@@ -592,7 +635,7 @@ export default function PendingSupplyOnboarding() {
                     }}
                   >
                     <TextInput
-                      style={[styles.input, isLocation && styles.locationInput]}
+                      style={[styles.input, hasValue && styles.inputActive]}
                       value={landDetails[key]}
                       editable={!isLocation}
                       pointerEvents={isLocation ? "none" : "auto"}
@@ -710,8 +753,7 @@ export default function PendingSupplyOnboarding() {
                 await handleSubmitSupplierRequest();
                 Toast.show({
                   type: "success",
-                  text1:
-                    "Application Submitted! You will be approved soon.",
+                  text1: "Application Submitted! You will be approved soon.",
                   position: "center",
                   visibilityTime: 3500,
                   onHide: () => router.replace("/(nontabs)"),
@@ -816,6 +858,7 @@ export default function PendingSupplyOnboarding() {
               mapField={mapField}
               setMapField={setMapField}
               setLandDetails={setLandDetails}
+              bounds={bounds}
             />
           </ScrollView>
         </View>
@@ -941,13 +984,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 7,
     color: "#24411b",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#bdd7c4",
   },
-  locationInput: {
-    backgroundColor: "#f0f8f0",
+  inputActive: {
     borderColor: "#175032",
-    borderWidth: 1.5,
+    backgroundColor: "#f0f8f0",
   },
   dropdown: {
     width: "96%",
