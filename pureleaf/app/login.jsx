@@ -17,89 +17,45 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // message object: { type: "error", text: string } or null
+  const [message, setMessage] = useState(null);
+
   const router = useRouter();
 
-  //   const handleLogin = () => {
-  //     // Add your authentication logic here
-  //     // If successful: router.replace('/(tabs)');
-  //     // alert('Login pressed');
-  //     router.replace('/(role)/(supplier)');
-  //   };
+  const validateForm = () => {
+    setMessage(null);
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  //     const handleLogin1 = () => {
-  //     // Add your authentication logic here
-  //     // If successful: router.replace('/(tabs)');
-  //     // alert('Login pressed');
-  //     router.replace('/(role)/(driver)');
-  //   };
-  //   const handleLogin2 = () => {
-  //     // Add your authentication logic here
-  //     // If successful: router.replace('/(tabs)');
-  //     // alert('Login pressed');
-  //     router.replace('/(role)/(inhouse)');
-  //   };
-  //   const handleLogin3 = () => {
-  //     // Add your authentication logic here
-  //     // If successful: router.replace('/(tabs)');
-  //     // alert('Login pressed');
-  //     router.replace('/(role)/(manager)');
-  //   };
+    if (!emailPattern.test(email)) {
+      setMessage({ type: "error", text: "Please enter a valid email address." });
+      return false;
+    }
 
-  // const handleLogin = async () => {
-  //   try {
-  //     // ✅ 1. Firebase login
-  //     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  //     const user = userCredential.user;
+    if (password.trim().length === 0) {
+      setMessage({ type: "error", text: "Password cannot be empty." });
+      return false;
+    }
 
-  //     // ✅ 2. Get Firebase ID token
-  //     const token = await user.getIdToken();
-
-  //     // ✅ 3. Send token to Spring Boot backend
-  //     const response = await fetch("http://192.168.8.195:8080/api/auth/login", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({ token }),
-  //     });
-
-  //     const status = response.status;
-  //     const text = await response.text();
-
-  //     console.log("Login response status:", status);
-  //     console.log("Login response body:", text);
-
-  //     if (status !== 200) {
-  //       throw new Error("Login failed: " + text);
-  //     }
-
-  //     // ✅ Navigate after successful login
-  //     router.replace("/(role)/(supplier)");
-
-  //   } catch (error) {
-  //     alert("Login failed: " + error.message);
-  //   }
-  // };
+    return true;
+  };
 
   const handleLogin = async () => {
+    if (!validateForm()) return;
+
+    setMessage(null);
+
     try {
-      // ✅ 1. Firebase login
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      // Firebase login
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // ✅ 2. Get Firebase ID token
+      // Get Firebase ID token
       const token = await user.getIdToken();
 
-      // ✅ 3. Send token to Spring Boot backend
+      // Send token to backend
       const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
 
@@ -108,17 +64,16 @@ export default function LoginScreen() {
         throw new Error("Login failed: " + errorText);
       }
 
-      // ✅ 4. Get user info from backend
+      // Get user info from backend
       const data = await response.json();
-      const userRole = data.role?.toLowerCase(); // Example: "SUPPLIER" -> "supplier"
+      const userRole = data.role?.toLowerCase();
       const userId = data.userId || data.id;
 
-      // Store userId for later use (e.g., supplier request)
       if (userId) {
         await AsyncStorage.setItem("userId", String(userId));
       }
 
-      // ✅ 5. Navigate based on role
+      // Navigate based on role
       switch (userRole) {
         case "pending_user":
           router.replace("/(role)/(pending)");
@@ -129,12 +84,15 @@ export default function LoginScreen() {
         case "supplier":
           router.replace("/(role)/(supplier)");
           break;
+        case "inhouse":
+          router.replace("/(role)/(inhouse)");
+          break;
         default:
           alert("Login successful, but unknown role: " + userRole);
           break;
       }
     } catch (error) {
-      alert("Login failed: " + error.message);
+      setMessage({ type: "error", text: error.message || "Login failed" });
       console.error("Login error:", error);
     }
   };
@@ -152,6 +110,14 @@ export default function LoginScreen() {
         />
         <Text style={styles.title}>Welcome to PureLeaf</Text>
         <Text style={styles.subtitle}>Login</Text>
+
+        {/* Inline Message Box */}
+        {message && (
+          <View style={[styles.messageBox, message.type === "error" && styles.errorBox]}>
+            <Text style={styles.messageText}>{message.text}</Text>
+          </View>
+        )}
+
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
@@ -172,10 +138,6 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        {/* <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-          <Text style={styles.loginBtnText}>Login</Text>
-        </TouchableOpacity> */}
-
         <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
           <Text style={styles.loginBtnText}>Login</Text>
         </TouchableOpacity>
@@ -184,7 +146,6 @@ export default function LoginScreen() {
         </TouchableOpacity>
         <View style={styles.signupRow}>
           <Text style={styles.signupText}>{"Don't have an account yet?"}</Text>
-
           <TouchableOpacity onPress={() => router.push("/signup")}>
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>
@@ -193,6 +154,7 @@ export default function LoginScreen() {
     </ImageBackground>
   );
 }
+
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
@@ -278,5 +240,23 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
     textDecorationLine: "underline",
+  },
+  messageBox: {
+    width: "100%",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 5,
+    marginBottom: 12,
+    backgroundColor: "#ecad89ff",
+    borderWidth: 1,
+    borderColor: "#d66d30ff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  messageText: {
+    color: "#d63031",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
