@@ -132,6 +132,21 @@ const MapPickerOverlay = ({
 
 // ====== MAIN COMPONENT ======
 export default function PendingSupplyOnboarding() {
+  const [userName, setUserName] = useState("");
+  useEffect(() => {
+    const loadUserName = async () => {
+      try {
+        const userDataStr = await AsyncStorage.getItem("userData");
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          setUserName(userData.name || "");
+        }
+      } catch {
+        setUserName("");
+      }
+    };
+    loadUserName();
+  }, []);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rejectReason, setRejectReason] = useState("");
@@ -821,7 +836,9 @@ export default function PendingSupplyOnboarding() {
             imageStyle={styles.greetingImageBorder}
           >
             <View style={styles.greetingOverlay}>
-              <Text style={styles.greetingText}>Welcome Shehan!</Text>
+              <Text style={styles.greetingText}>
+                Welcome {userName ? userName : "User"}!
+              </Text>
             </View>
           </ImageBackground>
         </View>

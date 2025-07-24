@@ -27,7 +27,10 @@ export default function LoginScreen() {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailPattern.test(email)) {
-      setMessage({ type: "error", text: "Please enter a valid email address." });
+      setMessage({
+        type: "error",
+        text: "Please enter a valid email address.",
+      });
       return false;
     }
 
@@ -46,7 +49,11 @@ export default function LoginScreen() {
 
     try {
       // Firebase login
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const user = userCredential.user;
 
       // Get Firebase ID token
@@ -71,6 +78,55 @@ export default function LoginScreen() {
 
       if (userId) {
         await AsyncStorage.setItem("userId", String(userId));
+
+        // Fetch user data and store in AsyncStorage
+        try {
+          const userRes = await fetch(`${BASE_URL}/api/users/${userId}`);
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            await AsyncStorage.setItem("userData", JSON.stringify(userData));
+          } else {
+            console.warn("Failed to fetch user data");
+          }
+        } catch (err) {
+          console.error("Error fetching user data:", err);
+        }
+
+        // Fetch supplier request data and store in AsyncStorage
+        try {
+          const supplierReqRes = await fetch(
+            `${BASE_URL}/api/supplier-requests?userId=${userId}`
+          );
+          if (supplierReqRes.ok) {
+            const supplierRequestData = await supplierReqRes.json();
+            await AsyncStorage.setItem(
+              "supplierRequest",
+              JSON.stringify(supplierRequestData)
+            );
+          } else {
+            console.warn("Failed to fetch supplier request data");
+          }
+        } catch (err) {
+          console.error("Error fetching supplier request data:", err);
+        }
+
+        // Fetch supplier table details and store in AsyncStorage
+        try {
+          const supplierTableRes = await fetch(
+            `${BASE_URL}/api/suppliers/by-user?userId=${userId}`
+          );
+          if (supplierTableRes.ok) {
+            const supplierTableData = await supplierTableRes.json();
+            await AsyncStorage.setItem(
+              "supplierData",
+              JSON.stringify(supplierTableData)
+            );
+          } else {
+            console.warn("Failed to fetch supplier table data");
+          }
+        } catch (err) {
+          console.error("Error fetching supplier table data:", err);
+        }
       }
 
       // Navigate based on role
@@ -92,7 +148,20 @@ export default function LoginScreen() {
           break;
       }
     } catch (error) {
-      setMessage({ type: "error", text: error.message || "Login failed" });
+      let errorMsg = "Login failed";
+      // Always show 'Invalid credentials' for any credential error
+      if (
+        (error && error.code && error.code.includes("invalid-credential")) ||
+        (error &&
+          error.message &&
+          error.message.includes("invalid-credential")) ||
+        (error &&
+          error.message &&
+          error.message.toLowerCase().includes("password"))
+      ) {
+        errorMsg = "Invalid credentials";
+      }
+      setMessage({ type: "error", text: errorMsg });
       console.error("Login error:", error);
     }
   };
@@ -113,7 +182,12 @@ export default function LoginScreen() {
 
         {/* Inline Message Box */}
         {message && (
-          <View style={[styles.messageBox, message.type === "error" && styles.errorBox]}>
+          <View
+            style={[
+              styles.messageBox,
+              message.type === "error" && styles.errorBox,
+            ]}
+          >
             <Text style={styles.messageText}>{message.text}</Text>
           </View>
         )}
