@@ -1,5 +1,5 @@
-
 import React, { useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect } from "react";
 import {
   View,
@@ -20,14 +20,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { BASE_URL } from "../../../constants/ApiConfig";
 
 export default function SupplierHome({ navigation }) {
-
+  const [userName, setUserName] = useState("");
   const sheetRef = useRef();
   const simSheetRef = useRef(); // <-- New ref for simulation sheet
   const router = useRouter();
 
-
   const [supplyState, setSupplyState] = useState("none"); // 'none', 'input', 'placed', 'driver', 'factory'
-
 
   const [bagCount, setBagCount] = useState("");
   const [lastBagCount, setLastBagCount] = useState(null);
@@ -38,6 +36,19 @@ export default function SupplierHome({ navigation }) {
   const [simPage, setSimPage] = useState(1);
   // Fetch today's supply request for supplier on mount
   useEffect(() => {
+    // Fetch userData from AsyncStorage for greeting
+    const loadUserName = async () => {
+      try {
+        const userDataStr = await AsyncStorage.getItem("userData");
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          setUserName(userData.name || "");
+        }
+      } catch (e) {
+        setUserName("");
+      }
+    };
+    loadUserName();
     const fetchSupplierRequests = async () => {
       setIsLoadingToday(true);
       try {
@@ -567,40 +578,11 @@ export default function SupplierHome({ navigation }) {
             style={styles.heroImg}
             imageStyle={{ borderRadius: 16 }}
           >
-            <Text style={styles.hello}>Hi Shehan!</Text>
+            <Text style={styles.hello}>
+              Hi {userName ? userName : "Supplier"}!
+            </Text>
           </ImageBackground>
         </View>
-
-        <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
-
-        {/* This month's Supply Card */}
-        <TouchableOpacity
-          style={styles.supplyCard}
-          activeOpacity={0.85}
-          onPress={() => {
-            // For Expo Router: navigate to the income analytics page
-            // Example for Expo Router:
-          }}
-        >
-          <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
-          <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
-          <Text style={styles.supplyCardValue}>
-            1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
-          </Text>
-        </TouchableOpacity>
-
-        {/* Wallet Card */}
-        <View style={styles.supplyCard}>
-          <Text style={styles.supplyCardLabel}>Wallet</Text>
-          <Text style={styles.walletCardValue}>Rs <Text style={styles.walletCardValueNum}>50,000.00</Text></Text>
-        </View>
-
-        {/* Supply Button (hide after confirming) */}
-        {(supplyState === 'none') && (
-          <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
-            <Text style={styles.supplyBtnText}>Supply</Text>
-          </TouchableOpacity>
-        )}
 
         {/* Collect your Cash Card */}
         <View style={styles.cashCard}>
@@ -616,9 +598,7 @@ export default function SupplierHome({ navigation }) {
           style={styles.supplyCard}
           activeOpacity={0.85}
           onPress={() => {
-            // For Expo Router: navigate to the income analytics page
-            // Example for Expo Router:
-            router.push('/(role)/(supplier)/(nontabs)/income');
+            router.push("/(role)/(supplier)/(nontabs)/income");
           }}
         >
           <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
@@ -629,7 +609,7 @@ export default function SupplierHome({ navigation }) {
         </TouchableOpacity>
 
         {/* Wallet Card */}
-        <TouchableOpacity onPress={() => router.push("/wallet")}> 
+        <TouchableOpacity onPress={() => router.push("/wallet")}>
           <View style={styles.supplyCard}>
             <Text style={styles.supplyCardLabel}>Wallet</Text>
             <Text style={styles.walletCardValue}>
@@ -638,14 +618,13 @@ export default function SupplierHome({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* API feedback messages removed from UI */}
         {/* Supply Button (hide after confirming) */}
-        {/* Only show Supply button if no request for today and not loading */}
         {supplyState === "none" && !todayRequestId && !isLoadingToday && (
           <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
             <Text style={styles.supplyBtnText}>Supply</Text>
           </TouchableOpacity>
         )}
+
         {/* Request Placed Card */}
         {showRequestPlacedCard && (
           <TouchableOpacity
@@ -665,18 +644,18 @@ export default function SupplierHome({ navigation }) {
               {supplyState === "factoryReached"
                 ? "difference -0.5 kg"
                 : supplyState === "factory"
-                ? "on the way to the factory"
-                : supplyState === "driver"
-                ? "Driver on the way, get your leaves ready"
-                : "Request Placed"}
+                  ? "on the way to the factory"
+                  : supplyState === "driver"
+                    ? "Driver on the way, get your leaves ready"
+                    : "Request Placed"}
             </Text>
 
             <Text style={styles.reqCardValue}>
               {supplyState === "factoryReached"
                 ? "52.9"
                 : supplyState === "factory"
-                ? "53.4"
-                : lastBagCount}
+                  ? "53.4"
+                  : lastBagCount}
               <Text style={styles.supplyCardUnit}>
                 {supplyState === "factoryReached" || supplyState === "factory"
                   ? "kg"

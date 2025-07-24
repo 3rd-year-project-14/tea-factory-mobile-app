@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { auth } from "../firebase"; // adjust path if firebase.js is elsewhere
+import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 import { Feather } from "@expo/vector-icons";
 
 export default function SignupBasicForm() {
@@ -42,17 +43,26 @@ export default function SignupBasicForm() {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!nicPattern.test(form.nic)) {
-      setMessage({ type: "error", text: "NIC should be 9 digits ending with 'V/v' or 12 digits." });
+      setMessage({
+        type: "error",
+        text: "NIC should be 9 digits ending with 'V/v' or 12 digits.",
+      });
       return false;
     }
 
     if (!phonePattern.test(form.phone)) {
-      setMessage({ type: "error", text: "Phone number should be exactly 10 digits." });
+      setMessage({
+        type: "error",
+        text: "Phone number should be exactly 10 digits.",
+      });
       return false;
     }
 
     if (!emailPattern.test(form.email)) {
-      setMessage({ type: "error", text: "Please enter a valid email address." });
+      setMessage({
+        type: "error",
+        text: "Please enter a valid email address.",
+      });
       return false;
     }
 
@@ -77,7 +87,7 @@ export default function SignupBasicForm() {
       const user = userCred.user;
       const token = await getIdToken(user);
 
-      const response = await fetch("http://192.168.33.92:8080/api/auth/signup", {
+      const response = await fetch(`${BASE_URL}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -100,7 +110,10 @@ export default function SignupBasicForm() {
       }
     } catch (error) {
       console.error("Signup error:", error);
-      setMessage({ type: "error", text: error.message || "Something went wrong" });
+      setMessage({
+        type: "error",
+        text: error.message || "Something went wrong",
+      });
     }
   };
 
@@ -132,7 +145,9 @@ export default function SignupBasicForm() {
                 <View
                   style={[
                     styles.messageBox,
-                    message.type === "error" ? styles.errorBox : styles.successBox,
+                    message.type === "error"
+                      ? styles.errorBox
+                      : styles.successBox,
                   ]}
                 >
                   <Text style={styles.messageText}>{message.text}</Text>
@@ -196,8 +211,14 @@ export default function SignupBasicForm() {
                   placeholderTextColor="#888"
                   secureTextEntry={!showPassword}
                 />
-                <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
-                  <Feather name={showPassword ? "eye" : "eye-off"} size={19} color="#555" />
+                <TouchableOpacity
+                  onPress={() => setShowPassword((prev) => !prev)}
+                >
+                  <Feather
+                    name={showPassword ? "eye" : "eye-off"}
+                    size={19}
+                    color="#555"
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -211,13 +232,22 @@ export default function SignupBasicForm() {
                   placeholderTextColor="#888"
                   secureTextEntry={!showConfirmPassword}
                 />
-                <TouchableOpacity onPress={() => setShowConfirmPassword((prev) => !prev)}>
-                  <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={19} color="#555" />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword((prev) => !prev)}
+                >
+                  <Feather
+                    name={showConfirmPassword ? "eye" : "eye-off"}
+                    size={19}
+                    color="#555"
+                  />
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
-                style={[styles.nextBtn, !allFieldsFilled && { backgroundColor: "#bbb" }]}
+                style={[
+                  styles.nextBtn,
+                  !allFieldsFilled && { backgroundColor: "#bbb" },
+                ]}
                 disabled={!allFieldsFilled}
                 onPress={handleSignup}
               >
@@ -225,7 +255,7 @@ export default function SignupBasicForm() {
               </TouchableOpacity>
 
               <View style={styles.loginRow}>
-                <Text style={styles.loginText}>Already have an account yet? </Text>
+                <Text style={styles.loginText}>Already have an account? </Text>
                 <TouchableOpacity onPress={() => router.replace("/login")}>
                   <Text style={styles.loginLink}>Log in</Text>
                 </TouchableOpacity>

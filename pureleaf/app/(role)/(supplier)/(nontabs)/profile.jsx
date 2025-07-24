@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -9,29 +10,92 @@ import {
   Platform,
   Modal,
   TextInput,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 
-export const options = { title: 'Profile' };
+export const options = { title: "Profile" };
 
 export default function Profile() {
   const [editVisible, setEditVisible] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [profileImage, setProfileImage] = useState(
-    require('../../../../assets/images/propic.jpg')
+    require("../../../../assets/images/propic.jpg")
   );
 
   const [formData, setFormData] = useState({
-    name: 'Shehan Hasaranga',
-    email: 'Shehanhasaranga@gmail.com',
-    homeAddress: 'No 12, Anderson lane , Neluwa',
-    phoneNumber: '070 5678432',
-    pickUpAddress: 'No 31, Perera lane, Neluwa',
-    landSize: '2 acres',
-    monthlyTeaCapacity: '500 kg',
+    name: "",
+    email: "",
+    homeAddress: "",
+    phoneNumber: "",
+    pickUpAddress: "",
+    landSize: "",
+    monthlyTeaCapacity: "",
   });
+
+  // Add router for navigation
+  const router = require("expo-router").useRouter();
+
+  // Logout handler
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.clear();
+      router.replace("/login");
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
+
+  React.useEffect(() => {
+    const loadProfileData = async () => {
+      try {
+        const userDataStr = await AsyncStorage.getItem("userData");
+        const supplierRequestStr =
+          await AsyncStorage.getItem("supplierRequest");
+        const supplierDataStr = await AsyncStorage.getItem("supplierData");
+        const userData = userDataStr ? JSON.parse(userDataStr) : {};
+        const supplierRequest = supplierRequestStr
+          ? JSON.parse(supplierRequestStr)
+          : null;
+        const supplierData = supplierDataStr
+          ? JSON.parse(supplierDataStr)
+          : null;
+
+        // Get values from userData
+        const name = userData.name || "";
+        const email = userData.email || "";
+        const homeAddress = userData.address || "";
+        const phoneNumber = userData.contactNo || "";
+
+        // Get values from supplierRequest or supplierData
+        let pickUpAddress = "";
+        let landSize = "";
+        let monthlyTeaCapacity = "";
+        if (supplierData && Object.keys(supplierData).length > 0) {
+          pickUpAddress = supplierData.pickupLocation || "";
+          landSize = supplierData.landSize || "";
+          monthlyTeaCapacity = supplierData.monthlySupply || "";
+        } else if (supplierRequest && Object.keys(supplierRequest).length > 0) {
+          pickUpAddress = supplierRequest.pickupLocation || "";
+          landSize = supplierRequest.landSize || "";
+          monthlyTeaCapacity = supplierRequest.monthlySupply || "";
+        }
+
+        setFormData({
+          name,
+          email,
+          homeAddress,
+          phoneNumber,
+          pickUpAddress,
+          landSize,
+          monthlyTeaCapacity,
+        });
+      } catch (err) {
+        console.error("Error loading profile data:", err);
+      }
+    };
+    loadProfileData();
+  }, []);
 
   const handleImagePick = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -51,11 +115,17 @@ export default function Profile() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
+    >
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
           <Image source={profileImage} style={styles.avatar} />
-          <TouchableOpacity style={styles.avatarEditButton} onPress={handleImagePick}>
+          <TouchableOpacity
+            style={styles.avatarEditButton}
+            onPress={handleImagePick}
+          >
             <MaterialIcons name="edit" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -64,15 +134,40 @@ export default function Profile() {
 
         <View style={styles.detailsBox}>
           {[
-            { icon: 'mail-outline', label: 'Email', value: formData.email },
-            { icon: 'home-outline', label: 'Home', value: formData.homeAddress },
-            { icon: 'call-outline', label: 'Phone', value: formData.phoneNumber },
-            { icon: 'location-outline', label: 'Pick up', value: formData.pickUpAddress },
-            { icon: 'leaf-outline', label: 'Land Size', value: formData.landSize },
-            { icon: 'trending-up-outline', label: 'Monthly Tea Capacity', value: formData.monthlyTeaCapacity },
+            { icon: "mail-outline", label: "Email", value: formData.email },
+            {
+              icon: "home-outline",
+              label: "Home",
+              value: formData.homeAddress,
+            },
+            {
+              icon: "call-outline",
+              label: "Phone",
+              value: formData.phoneNumber,
+            },
+            {
+              icon: "location-outline",
+              label: "Pick up",
+              value: formData.pickUpAddress,
+            },
+            {
+              icon: "leaf-outline",
+              label: "Land Size",
+              value: formData.landSize,
+            },
+            {
+              icon: "trending-up-outline",
+              label: "Monthly Tea Capacity",
+              value: formData.monthlyTeaCapacity,
+            },
           ].map((item, index) => (
             <View style={styles.detailRow} key={index}>
-              <Ionicons name={item.icon} size={18} color="#4e6c50" style={styles.icon} />
+              <Ionicons
+                name={item.icon}
+                size={18}
+                color="#4e6c50"
+                style={styles.icon}
+              />
               <Text style={styles.label}>{item.label}:</Text>
               <Text style={styles.value}>{item.value}</Text>
             </View>
@@ -80,17 +175,23 @@ export default function Profile() {
         </View>
 
         <View style={styles.buttonGroup}>
-          <TouchableOpacity style={styles.buttonSecondary} onPress={() => setEditVisible(true)}>
+          <TouchableOpacity
+            style={styles.buttonSecondary}
+            onPress={() => setEditVisible(true)}
+          >
             <MaterialIcons name="edit" size={16} color="#4e6c50" />
             <Text style={styles.buttonTextSecondary}>Edit profile</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.buttonSecondary} onPress={() => setPasswordVisible(true)}>
+          <TouchableOpacity
+            style={styles.buttonSecondary}
+            onPress={() => setPasswordVisible(true)}
+          >
             <Ionicons name="key-outline" size={16} color="#4e6c50" />
             <Text style={styles.buttonTextSecondary}>Change password</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.buttonLogout}>
+          <TouchableOpacity style={styles.buttonLogout} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={18} color="#fff" />
             <Text style={styles.buttonTextLogout}>Logout</Text>
           </TouchableOpacity>
@@ -104,7 +205,11 @@ export default function Profile() {
           onPressOut={() => setEditVisible(false)}
           style={styles.modalContainer}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalContent}
+            onPress={() => {}}
+          >
             <Text style={styles.modalTitle}>Edit Profile</Text>
 
             {/* Labeled Inputs */}
@@ -141,7 +246,7 @@ export default function Profile() {
                 style={styles.input}
                 value={formData.phoneNumber}
                 keyboardType="phone-pad"
-                onChangeText={(text) => handleChange('phoneNumber', text)}
+                onChangeText={(text) => handleChange("phoneNumber", text)}
               />
             </View>
 
@@ -150,7 +255,7 @@ export default function Profile() {
               <TextInput
                 style={styles.input}
                 value={formData.pickUpAddress}
-                onChangeText={(text) => handleChange('pickUpAddress', text)}
+                onChangeText={(text) => handleChange("pickUpAddress", text)}
               />
             </View>
 
@@ -159,7 +264,7 @@ export default function Profile() {
               <TextInput
                 style={styles.input}
                 value={formData.landSize}
-                onChangeText={(text) => handleChange('landSize', text)}
+                onChangeText={(text) => handleChange("landSize", text)}
               />
             </View>
 
@@ -168,11 +273,16 @@ export default function Profile() {
               <TextInput
                 style={styles.input}
                 value={formData.monthlyTeaCapacity}
-                onChangeText={(text) => handleChange('monthlyTeaCapacity', text)}
+                onChangeText={(text) =>
+                  handleChange("monthlyTeaCapacity", text)
+                }
               />
             </View>
 
-            <TouchableOpacity style={styles.modalButton} onPress={() => setEditVisible(false)}>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setEditVisible(false)}
+            >
               <Text style={styles.modalButtonText}>Save</Text>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -186,7 +296,11 @@ export default function Profile() {
           onPressOut={() => setPasswordVisible(false)}
           style={styles.modalContainer}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalContent}
+            onPress={() => {}}
+          >
             <Text style={styles.modalTitle}>Change Password</Text>
 
             <TextInput
@@ -208,7 +322,10 @@ export default function Profile() {
               secureTextEntry
             />
 
-            <TouchableOpacity style={styles.modalButton} onPress={() => setPasswordVisible(false)}>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setPasswordVisible(false)}
+            >
               <Text style={styles.modalButtonText}>Change</Text>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -221,19 +338,19 @@ export default function Profile() {
 // ─── Styles ─────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#f1f5f1',
+    backgroundColor: "#f1f5f1",
     flex: 1,
   },
   profileCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 24,
     margin: 20,
     paddingVertical: 30,
     paddingHorizontal: 24,
-    alignItems: 'center',
+    alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.05,
         shadowRadius: 12,
@@ -244,41 +361,41 @@ const styles = StyleSheet.create({
     }),
   },
   avatarWrap: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 18,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
   },
   avatarEditButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 4,
     right: 4,
-    backgroundColor: '#183d2b',
+    backgroundColor: "#183d2b",
     borderRadius: 18,
     padding: 5,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
   },
   name: {
     fontSize: 24,
-    fontWeight: '600',
-    color: '#183d2b',
+    fontWeight: "600",
+    color: "#183d2b",
     marginBottom: 20,
     letterSpacing: 0.5,
   },
   detailsBox: {
-    width: '100%',
+    width: "100%",
     borderTopWidth: 1,
-    borderColor: '#e0e6e1',
+    borderColor: "#e0e6e1",
     paddingTop: 16,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 12,
   },
   icon: {
@@ -287,67 +404,67 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 15,
-    color: '#7aa07a',
-    fontWeight: '600',
+    color: "#7aa07a",
+    fontWeight: "600",
     minWidth: 80,
   },
   value: {
     fontSize: 15,
-    color: '#334533',
+    color: "#334533",
     flex: 1,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   buttonGroup: {
     marginTop: 30,
-    width: '100%',
+    width: "100%",
   },
   buttonSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#eff5ee',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff5ee",
     paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 12,
-    justifyContent: 'center',
-    borderColor: '#ccdacc',
+    justifyContent: "center",
+    borderColor: "#ccdacc",
     borderWidth: 1.5,
   },
   buttonTextSecondary: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#4e6c50',
+    fontWeight: "600",
+    color: "#4e6c50",
     marginLeft: 8,
   },
   buttonLogout: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#183d2b',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#183d2b",
     paddingVertical: 15,
     borderRadius: 14,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   buttonTextLogout: {
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     letterSpacing: 1,
     marginLeft: 8,
   },
   modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#183d2b',
+    fontWeight: "600",
+    color: "#183d2b",
     marginBottom: 20,
   },
   labeledInput: {
@@ -355,31 +472,31 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#183d2b',
+    fontWeight: "600",
+    color: "#183d2b",
     marginBottom: 6,
     marginLeft: 2,
   },
   input: {
-    backgroundColor: '#f3f6f2',
+    backgroundColor: "#f3f6f2",
     padding: 12,
     borderRadius: 10,
     fontSize: 15,
-    color: '#183d2b',
+    color: "#183d2b",
   },
   disabledInput: {
     opacity: 0.5,
   },
   modalButton: {
-    backgroundColor: '#183d2b',
+    backgroundColor: "#183d2b",
     padding: 14,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 16,
   },
   modalButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     fontSize: 16,
   },
 });
