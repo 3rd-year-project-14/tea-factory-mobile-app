@@ -8,17 +8,18 @@ import {
   Image,
   StyleSheet,
   ImageBackground,
+  ActivityIndicator,
 } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase"; // 👈 path to firebase.js
+import { auth } from "../firebase";
 import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // message object: { type: "error", text: string } or null
   const [message, setMessage] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
@@ -46,6 +47,7 @@ export default function LoginScreen() {
     if (!validateForm()) return;
 
     setMessage(null);
+    setLoading(true);
 
     try {
       // Firebase login
@@ -65,7 +67,7 @@ export default function LoginScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-
+      console.log("Response from backend:", response);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error("Login failed: " + errorText);
@@ -73,24 +75,16 @@ export default function LoginScreen() {
 
       // Get user info from backend
       const data = await response.json();
+      console.log("User data from backend:", data);
       const userRole = data.role?.toLowerCase();
       const userId = data.userId || data.id;
 
       if (userId) {
-        await AsyncStorage.setItem("userId", String(userId));
-
-        // Fetch user data and store in AsyncStorage
-        try {
-          const userRes = await fetch(`${BASE_URL}/api/users/${userId}`);
-          if (userRes.ok) {
-            const userData = await userRes.json();
-            await AsyncStorage.setItem("userData", JSON.stringify(userData));
-          } else {
-            console.warn("Failed to fetch user data");
-          }
-        } catch (err) {
-          console.error("Error fetching user data:", err);
-        }
+        // Store user data from login response
+        await AsyncStorage.setItem("userData", JSON.stringify(data));
+        // Console the stored user data
+        const storedUserData = await AsyncStorage.getItem("userData");
+        console.log("Stored userData:", storedUserData);
 
         // Fetch supplier request data and store in AsyncStorage
         try {
@@ -127,6 +121,7 @@ export default function LoginScreen() {
         } catch (err) {
           console.error("Error fetching supplier table data:", err);
         }
+        
       }
 
       // Navigate based on role
@@ -163,6 +158,8 @@ export default function LoginScreen() {
       }
       setMessage({ type: "error", text: errorMsg });
       console.error("Login error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -212,8 +209,27 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-          <Text style={styles.loginBtnText}>Login</Text>
+        <TouchableOpacity
+          style={[styles.loginBtn, loading && { opacity: 0.6 }]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={[styles.loginBtnText, { marginLeft: 8 }]}>
+                Logging in...
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.loginBtnText}>Login</Text>
+          )}
         </TouchableOpacity>
         <TouchableOpacity>
           <Text style={styles.forgot}>Forgot Password?</Text>
