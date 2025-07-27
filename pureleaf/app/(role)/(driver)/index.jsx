@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { BASE_URL } from "../../../constants/ApiConfig";
 import {
   View,
   Text,
@@ -11,11 +13,11 @@ import {
   ImageBackground,
   Linking,
   TextInput,
+  Pressable,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Pressable } from "react-native";
 
 const reasons = ["Fever", "Rain", "No Leaves", "Personal", "Other"];
 
@@ -124,8 +126,27 @@ export default function SupplierHome() {
   const router = useRouter();
 
   const handleCheckIn = () => setModalVisible(true);
-  const handleYesCollecting = () => {
+  const handleYesCollecting = async () => {
     setModalVisible(false);
+    try {
+      const driverDataStr = await AsyncStorage.getItem("driverData");
+      let driverId = null;
+      if (driverDataStr) {
+        const driverData = JSON.parse(driverDataStr);
+        // Try both id and driverId for compatibility
+        driverId = driverData.id || driverData.driverId;
+      }
+      if (driverId) {
+        await axios.post(`${BASE_URL}/api/driver-availability`, {
+          driverId: driverId,
+          isAvailable: true,
+        });
+      } else {
+        console.warn("Driver ID not found in storage");
+      }
+    } catch (error) {
+      console.error("Error posting driver availability:", error);
+    }
     setPageState("checkedIn");
   };
   const handleNoCollecting = () => {
@@ -217,7 +238,7 @@ export default function SupplierHome() {
             onPress={handleEditNotCollecting}
           >
             <Text style={styles.notCollectingTitle}>
-              I'm not collecting today
+              I&apos;m not collecting today
             </Text>
             <Text style={styles.notCollectingReason}>
               Reason: {notCollectingReason}
@@ -231,7 +252,7 @@ export default function SupplierHome() {
           <>
             <View style={styles.supplierCountCard}>
               <Text style={styles.supplierCountTitle}>
-                Today's Total Suppliers
+                Today&apos;s Total Suppliers
               </Text>
               <Text style={styles.supplierCountNum}>
                 {suppliers.length}{" "}
@@ -323,7 +344,7 @@ export default function SupplierHome() {
                 style={styles.modalBtnNo}
                 onPress={handlePickerModalClose}
               >
-                <Text style={styles.modalBtnText}>I'm Collecting</Text>
+                <Text style={styles.modalBtnText}>I&apos;m Collecting</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalBtnYes}
