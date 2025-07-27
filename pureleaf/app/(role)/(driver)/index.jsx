@@ -15,11 +15,11 @@ import {
   TextInput,
   Pressable,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
+// import { Picker } from "@react-native-picker/picker"; // No longer needed
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-const reasons = ["Fever", "Rain", "No Leaves", "Personal", "Other"];
+// const reasons = ["Fever", "Rain", "No Leaves", "Personal", "Other"]; // No longer needed
 
 // 6 Sri Lankan supplier samples
 const suppliers = [
@@ -93,31 +93,82 @@ const suppliers = [
 
 export default function SupplierHome() {
   const [userName, setUserName] = useState("");
-  useEffect(() => {
-    const loadUserName = async () => {
-      try {
-        const userDataStr = await AsyncStorage.getItem("userData");
-        if (userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          setUserName(userData.name || "");
-        }
-      } catch {
-        setUserName("");
-      }
-    };
-    loadUserName();
-  }, []);
   const [modalVisible, setModalVisible] = useState(false);
   const [pickerModalVisible, setPickerModalVisible] = useState(false);
   const [pageState, setPageState] = useState("main");
   const [notCollectingReason, setNotCollectingReason] = useState("");
-  const [dropdownValue, setDropdownValue] = useState("");
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editReasonModalVisible, setEditReasonModalVisible] = useState(false);
+  const [editNotCollectingModalVisible, setEditNotCollectingModalVisible] =
+    useState(false);
+  const [driverAvailabilityId, setDriverAvailabilityId] = useState(null);
+  // const [dropdownValue, setDropdownValue] = useState(""); // No longer needed
+  const [customReason, setCustomReason] = useState("");
   const [afterFour, setAfterFour] = useState(false);
   const [supplierModalVisible, setSupplierModalVisible] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [readySimulated, setReadySimulated] = useState(false);
-  const [showStartTrip, setShowStartTrip] = useState(false);
+  // const [showStartTrip, setShowStartTrip] = useState(false); // No longer needed
+  const [driverId, setDriverId] = useState(null);
+  const [isCheckedInToday, setIsCheckedInToday] = useState(null); // null = loading, true/false = loaded
+
+  useEffect(() => {
+    const loadUserAndCheckIn = async () => {
+      try {
+        // Load user name
+        const userDataStr = await AsyncStorage.getItem("userData");
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          setUserName(userData.name || "");
+        }
+        // Load driverId
+        const driverDataStr = await AsyncStorage.getItem("driverData");
+        let _driverId = null;
+        if (driverDataStr) {
+          const driverData = JSON.parse(driverDataStr);
+          _driverId = driverData.id || driverData.driverId;
+          setDriverId(_driverId);
+        }
+        // Check today's driver-availability row
+        if (_driverId) {
+          try {
+            const res = await axios.get(
+              `${BASE_URL}/api/driver-availability/today/${_driverId}`
+            );
+            if (!res.data || Object.keys(res.data).length === 0) {
+              // No row for today: show check-in button
+              setIsCheckedInToday(false);
+              setPageState("main");
+              setDriverAvailabilityId(null);
+            } else if (res.data.isAvailable) {
+              // Checked in: show checked-in card
+              setIsCheckedInToday(true);
+              setPageState("checkedIn");
+              setDriverAvailabilityId(res.data.id);
+            } else {
+              // Not collecting: show not-collecting card with reason
+              setIsCheckedInToday(false);
+              setNotCollectingReason(res.data.reason || "");
+              setPageState("notCollectingSet");
+              setDriverAvailabilityId(res.data.id);
+            }
+          } catch {
+            setIsCheckedInToday(false);
+            setPageState("main");
+          }
+        } else {
+          setIsCheckedInToday(false);
+          setPageState("main");
+        }
+      } catch {
+        setUserName("");
+        setIsCheckedInToday(false);
+        setPageState("main");
+      }
+    };
+    loadUserAndCheckIn();
+  }, []);
 
   const filteredSuppliers = suppliers.filter((s) =>
     s.name.toLowerCase().includes(searchText.toLowerCase())
@@ -129,42 +180,142 @@ export default function SupplierHome() {
   const handleYesCollecting = async () => {
     setModalVisible(false);
     try {
-      const driverDataStr = await AsyncStorage.getItem("driverData");
-      let driverId = null;
-      if (driverDataStr) {
-        const driverData = JSON.parse(driverDataStr);
-        // Try both id and driverId for compatibility
-        driverId = driverData.id || driverData.driverId;
-      }
-      if (driverId) {
-        await axios.post(`${BASE_URL}/api/driver-availability`, {
-          driverId: driverId,
+      const _driverId = driverId;
+      if (_driverId) {
+        // POST to create availability
+        const res = await axios.post(`${BASE_URL}/api/driver-availability`, {
+          driverId: _driverId,
           isAvailable: true,
         });
+        // Try to get the id from response, otherwise fetch today's row
+        let newId = res.data && res.data.id;
+        if (!newId) {
+          // Fetch today's row to get id
+          const getRes = await axios.get(
+            `${BASE_URL}/api/driver-availability/today/${_driverId}`
+          );
+          newId = getRes.data && getRes.data.id;
+        }
+        setDriverAvailabilityId(newId || null);
+        setIsCheckedInToday(true);
+        setPageState("checkedIn");
       } else {
         console.warn("Driver ID not found in storage");
       }
     } catch (error) {
       console.error("Error posting driver availability:", error);
     }
-    setPageState("checkedIn");
   };
   const handleNoCollecting = () => {
     setModalVisible(false);
     setTimeout(() => setPickerModalVisible(true), 200);
   };
-  const handleSubmitReason = () => {
-    setNotCollectingReason(dropdownValue);
+  const handleSubmitReason = async () => {
     setPickerModalVisible(false);
-    setPageState("notCollectingSet");
+    try {
+      const _driverId = driverId;
+      let newId = null;
+      if (_driverId) {
+        const res = await axios.post(`${BASE_URL}/api/driver-availability`, {
+          driverId: _driverId,
+          isAvailable: false,
+          reason: customReason,
+        });
+        newId = res.data && res.data.id;
+        if (!newId) {
+          // Fetch today's row to get id
+          const getRes = await axios.get(
+            `${BASE_URL}/api/driver-availability/today/${_driverId}`
+          );
+          newId = getRes.data && getRes.data.id;
+        }
+        setDriverAvailabilityId(newId || null);
+        setNotCollectingReason(customReason);
+        setPageState("notCollectingSet");
+      } else {
+        console.warn("Driver ID not found in storage");
+      }
+    } catch (error) {
+      console.error("Error posting driver not available:", error);
+    }
+    setCustomReason("");
   };
-  const handleEditCheckedIn = () => setModalVisible(true);
-  const handleEditNotCollecting = () => setPickerModalVisible(true);
-  const handlePickerModalClose = () => {
-    setPickerModalVisible(false);
+  // When checked in, tap to edit: show 'Are you not collecting today?' modal
+  const handleEditCheckedIn = () => setEditModalVisible(true);
+
+  // In edit modal: Yes = show reason modal, Cancel = return to checked-in
+  const handleEditNoCollecting = () => {
+    setEditModalVisible(false);
+    setTimeout(() => setEditReasonModalVisible(true), 200);
+  };
+  const handleEditCancel = () => {
+    setEditModalVisible(false);
     setPageState("checkedIn");
   };
-  const handleShowSuppliers = () => setSupplierModalVisible(true);
+
+  // Submit edit reason: update today's availability row
+  const handleEditSubmitReason = async () => {
+    setEditReasonModalVisible(false);
+    try {
+      if (driverAvailabilityId) {
+        const res = await axios.put(
+          `${BASE_URL}/api/driver-availability/${driverAvailabilityId}`,
+          {
+            isAvailable: false,
+            reason: customReason,
+          }
+        );
+        // Update state with new values from backend response if available
+        if (res.data) {
+          setNotCollectingReason(res.data.reason || customReason);
+          setDriverAvailabilityId(res.data.id || driverAvailabilityId);
+        } else {
+          setNotCollectingReason(customReason);
+        }
+        setPageState("notCollectingSet");
+        setIsCheckedInToday(false);
+      } else {
+        console.warn("No driverAvailabilityId for update");
+      }
+    } catch (error) {
+      console.error("Error updating driver availability:", error);
+    }
+    setCustomReason("");
+  };
+  // Tap to edit on not-collecting card: show 'Are you collecting today?' modal
+  const handleEditNotCollecting = () => setEditNotCollectingModalVisible(true);
+
+  // In edit not-collecting modal: Yes = set available, Cancel = close modal
+  const handleEditNotCollectingYes = async () => {
+    setEditNotCollectingModalVisible(false);
+    try {
+      if (driverAvailabilityId) {
+        await axios.put(
+          `${BASE_URL}/api/driver-availability/${driverAvailabilityId}`,
+          {
+            isAvailable: true,
+            reason: null,
+          }
+        );
+        setIsCheckedInToday(true);
+        setPageState("checkedIn");
+        setNotCollectingReason("");
+      } else {
+        console.warn("No driverAvailabilityId for update");
+      }
+    } catch (error) {
+      console.error("Error updating driver availability:", error);
+    }
+  };
+  const handleEditNotCollectingCancel = () => {
+    setEditNotCollectingModalVisible(false);
+    setPageState("notCollectingSet");
+  };
+  const handlePickerModalClose = () => {
+    setPickerModalVisible(false);
+    setPageState("main"); // Go back to Check In button
+  };
+  // const handleShowSuppliers = () => setSupplierModalVisible(true); // No longer needed
   const handleSelectSupplier = (supplier) => setSelectedSupplier(supplier);
   const handleBackToList = () => setSelectedSupplier(null);
 
@@ -207,44 +358,167 @@ export default function SupplierHome() {
           </Text>
         </View>
 
-        {/* Check In Button (only show if not checked in or not collecting, and before 4) */}
-        {pageState === "main" && !afterFour && (
+        {/* Check In Button or Checked In Card based on today's status */}
+        {isCheckedInToday === null && !afterFour && (
+          <View style={{ alignItems: "center", marginTop: 30 }}>
+            <Text style={{ color: "#888", fontSize: 18 }}>
+              Loading status...
+            </Text>
+          </View>
+        )}
+        {isCheckedInToday === false && pageState === "main" && !afterFour && (
           <TouchableOpacity style={styles.checkInBtn} onPress={handleCheckIn}>
             <Text style={styles.checkInText}>Check In</Text>
           </TouchableOpacity>
         )}
-
-        {pageState === "checkedIn" && !afterFour && (
-          <TouchableOpacity onPress={() => setAfterFour(true)}>
-            <Text style={styles.simBtnText}>Simulate After 4:00 PM</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Checked In Card */}
-        {pageState === "checkedIn" && !afterFour && (
-          <TouchableOpacity
-            style={styles.checkedInCard}
-            onPress={handleEditCheckedIn}
-          >
-            <Text style={styles.checkedInTitle}>Checked In</Text>
-            <Text style={styles.editHint}>Tap to edit</Text>
-          </TouchableOpacity>
-        )}
+        {isCheckedInToday === true &&
+          pageState === "checkedIn" &&
+          !afterFour && (
+            <>
+              <TouchableOpacity onPress={() => setAfterFour(true)}>
+                <Text style={styles.simBtnText}>Simulate After 4:00 PM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.checkedInCard}
+                onPress={handleEditCheckedIn}
+              >
+                <Text style={styles.checkedInTitle}>Checked In</Text>
+                <Text style={styles.editHint}>Tap to edit</Text>
+              </TouchableOpacity>
+              {/* Edit Modal: Are you not collecting today? */}
+              <Modal
+                visible={editModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setEditModalVisible(false)}
+              >
+                <Pressable
+                  style={styles.modalOverlay}
+                  onPress={() => setEditModalVisible(false)}
+                >
+                  <Pressable
+                    style={styles.modalContent}
+                    onPress={(e) => e.stopPropagation()}
+                  >
+                    <Text style={styles.modalTitle}>
+                      Are you not collecting today?
+                    </Text>
+                    <View style={styles.modalBtnRow}>
+                      <TouchableOpacity
+                        style={styles.modalBtnNo}
+                        onPress={handleEditCancel}
+                      >
+                        <Text style={styles.modalBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.modalBtnYes}
+                        onPress={handleEditNoCollecting}
+                      >
+                        <Text style={styles.modalBtnText}>Yes</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </Pressable>
+                </Pressable>
+              </Modal>
+              {/* Edit Reason Modal */}
+              <Modal
+                visible={editReasonModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setEditReasonModalVisible(false)}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>
+                      Why are you not collecting today?
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.picker,
+                        { fontSize: 20, color: "#183d2b", padding: 10 },
+                      ]}
+                      placeholder="Enter your reason..."
+                      placeholderTextColor="#888"
+                      value={customReason}
+                      onChangeText={setCustomReason}
+                      multiline
+                      numberOfLines={2}
+                    />
+                    <View style={styles.modalBtnRow}>
+                      <TouchableOpacity
+                        style={styles.modalBtnNo}
+                        onPress={() => setEditReasonModalVisible(false)}
+                      >
+                        <Text style={styles.modalBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.modalBtnYes,
+                          !customReason.trim() && { opacity: 0.5 },
+                        ]}
+                        disabled={!customReason.trim()}
+                        onPress={handleEditSubmitReason}
+                      >
+                        <Text style={styles.modalBtnText}>Submit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </Modal>
+            </>
+          )}
 
         {/* Not Collecting Card */}
         {pageState === "notCollectingSet" && !afterFour && (
-          <TouchableOpacity
-            style={styles.notCollectingCard}
-            onPress={handleEditNotCollecting}
-          >
-            <Text style={styles.notCollectingTitle}>
-              I&apos;m not collecting today
-            </Text>
-            <Text style={styles.notCollectingReason}>
-              Reason: {notCollectingReason}
-            </Text>
-            <Text style={styles.editHint}>Tap to edit</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={styles.notCollectingCard}
+              onPress={handleEditNotCollecting}
+            >
+              <Text style={styles.notCollectingTitle}>
+                I&apos;m not collecting today
+              </Text>
+              <Text style={styles.notCollectingReason}>
+                Reason: {notCollectingReason}
+              </Text>
+              <Text style={styles.editHint}>Tap to edit</Text>
+            </TouchableOpacity>
+            {/* Edit Not-Collecting Modal: Are you collecting today? */}
+            <Modal
+              visible={editNotCollectingModalVisible}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setEditNotCollectingModalVisible(false)}
+            >
+              <Pressable
+                style={styles.modalOverlay}
+                onPress={() => setEditNotCollectingModalVisible(false)}
+              >
+                <Pressable
+                  style={styles.modalContent}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <Text style={styles.modalTitle}>
+                    Are you collecting today?
+                  </Text>
+                  <View style={styles.modalBtnRow}>
+                    <TouchableOpacity
+                      style={styles.modalBtnNo}
+                      onPress={handleEditNotCollectingCancel}
+                    >
+                      <Text style={styles.modalBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.modalBtnYes}
+                      onPress={handleEditNotCollectingYes}
+                    >
+                      <Text style={styles.modalBtnText}>Yes</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Pressable>
+              </Pressable>
+            </Modal>
+          </>
         )}
 
         {/* After-4 Supplier Count Card with Simulate Ready and Start Trip */}
@@ -270,7 +544,7 @@ export default function SupplierHome() {
               )}
             </View>
             {/* Start Trip Button */}
-            {readySimulated && !showStartTrip && (
+            {readySimulated && (
               <TouchableOpacity
                 style={styles.startTripBtn}
                 onPress={() => router.push("/(role)/(driver)/(nontabs)/trip")}
@@ -301,16 +575,16 @@ export default function SupplierHome() {
             <Text style={styles.modalTitle}>Are you collecting today?</Text>
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={styles.modalBtnYes}
-                onPress={handleYesCollecting}
-              >
-                <Text style={styles.modalBtnText}>Yes</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
                 style={styles.modalBtnNo}
                 onPress={handleNoCollecting}
               >
                 <Text style={styles.modalBtnText}>No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalBtnYes}
+                onPress={handleYesCollecting}
+              >
+                <Text style={styles.modalBtnText}>Yes</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -328,27 +602,31 @@ export default function SupplierHome() {
             <Text style={styles.modalTitle}>
               Why are you not collecting today?
             </Text>
-            <Picker
-              selectedValue={dropdownValue}
-              style={styles.picker}
-              itemStyle={{ color: "#183d2b", fontSize: 24 }}
-              onValueChange={(itemValue) => setDropdownValue(itemValue)}
-            >
-              <Picker.Item label="Select reason..." value="" color="#888" />
-              {reasons.map((r) => (
-                <Picker.Item key={r} label={r} value={r} color="#183d2b" />
-              ))}
-            </Picker>
+            <TextInput
+              style={[
+                styles.picker,
+                { fontSize: 20, color: "#183d2b", padding: 10 },
+              ]}
+              placeholder="Enter your reason..."
+              placeholderTextColor="#888"
+              value={customReason}
+              onChangeText={setCustomReason}
+              multiline
+              numberOfLines={2}
+            />
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
                 style={styles.modalBtnNo}
                 onPress={handlePickerModalClose}
               >
-                <Text style={styles.modalBtnText}>I&apos;m Collecting</Text>
+                <Text style={styles.modalBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalBtnYes}
-                disabled={!dropdownValue}
+                style={[
+                  styles.modalBtnYes,
+                  !customReason.trim() && { opacity: 0.5 },
+                ]}
+                disabled={!customReason.trim()}
                 onPress={handleSubmitReason}
               >
                 <Text style={styles.modalBtnText}>Submit</Text>
@@ -935,14 +1213,20 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 14,
     paddingHorizontal: 32,
-    marginLeft: 15,
+    flex: 1,
+    marginLeft: 0,
+    marginRight: 0,
+    minWidth: 0,
   },
   modalBtnNo: {
     backgroundColor: "#a11a1a",
     borderRadius: 24,
     paddingVertical: 14,
     paddingHorizontal: 32,
-    marginRight: 15,
+    flex: 1,
+    marginLeft: 0,
+    marginRight: 0,
+    minWidth: 0,
   },
   modalBtnText: {
     color: "#fff",
