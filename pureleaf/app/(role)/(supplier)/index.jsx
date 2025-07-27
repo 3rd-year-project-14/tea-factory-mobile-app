@@ -18,6 +18,7 @@ import RBSheet from "react-native-raw-bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
 
 import { BASE_URL } from "../../../constants/ApiConfig";
+import axios from "axios";
 
 export default function SupplierHome({ navigation }) {
   const [userName, setUserName] = useState("");
@@ -52,39 +53,46 @@ export default function SupplierHome({ navigation }) {
     const fetchSupplierRequests = async () => {
       setIsLoadingToday(true);
       try {
-        const supplierId = 13; // Use supplierId 13 as per user request
-        const response = await fetch(
-          `http://localhost:8080/api/tea-supply-requests/${supplierId}`
+        // Get supplierId from stored userData
+        const userDataStr = await AsyncStorage.getItem("userData");
+        let supplierId = null;
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          supplierId = userData.userId || userData.id;
+        }
+        if (!supplierId) {
+          setTodayRequestId(null);
+          setTodayBagCount(null);
+          setSupplyState("none");
+          setIsLoadingToday(false);
+          return;
+        }
+        const response = await axios.get(
+          `${BASE_URL}/api/tea-supply-requests/${supplierId}`
         );
-        if (response.ok) {
-          const data = await response.json();
-          // Assume data is an array of requests
-          if (Array.isArray(data) && data.length > 0) {
-            // Find all requests for today
-            const today = new Date();
-            const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
-            const todaysRequests = data.filter((req) => {
-              // Match by supplyDate (sample response uses supplyDate)
-              return req.supplyDate === todayStr;
-            });
-            // Use the last request for today (if any)
-            const latestRequest =
-              todaysRequests.length > 0
-                ? todaysRequests[todaysRequests.length - 1]
-                : null;
-            if (latestRequest && latestRequest.requestId) {
-              setTodayRequestId(latestRequest.requestId);
-              setRequestId(latestRequest.requestId);
-              if (latestRequest.estimatedBagCount !== undefined) {
-                setTodayBagCount(latestRequest.estimatedBagCount);
-                setLastBagCount(latestRequest.estimatedBagCount);
-              }
-              setSupplyState("placed");
-            } else {
-              setTodayRequestId(null);
-              setTodayBagCount(null);
-              setSupplyState("none");
+        const data = response.data;
+        // Assume data is an array of requests
+        if (Array.isArray(data) && data.length > 0) {
+          // Find all requests for today
+          const today = new Date();
+          const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+          const todaysRequests = data.filter((req) => {
+            // Match by supplyDate (sample response uses supplyDate)
+            return req.supplyDate === todayStr;
+          });
+          // Use the last request for today (if any)
+          const latestRequest =
+            todaysRequests.length > 0
+              ? todaysRequests[todaysRequests.length - 1]
+              : null;
+          if (latestRequest && latestRequest.requestId) {
+            setTodayRequestId(latestRequest.requestId);
+            setRequestId(latestRequest.requestId);
+            if (latestRequest.estimatedBagCount !== undefined) {
+              setTodayBagCount(latestRequest.estimatedBagCount);
+              setLastBagCount(latestRequest.estimatedBagCount);
             }
+            setSupplyState("placed");
           } else {
             setTodayRequestId(null);
             setTodayBagCount(null);
@@ -141,73 +149,82 @@ export default function SupplierHome({ navigation }) {
 
   // When confirming supply
   const handleConfirm = async () => {
-    // Removed console.log for edit mode
     sheetRef.current.close();
     // If today's request exists, only allow edit, not create
     if (todayRequestId || (isEditing && requestId)) {
-      setLastBagCount(bagCount);
-      setSupplyState("placed");
       try {
-        await fetch(
+        await axios.put(
           `${BASE_URL}/api/tea-supply-requests/${requestId}/bag-count`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              estimatedBagCount: Number(bagCount),
-            }),
-          }
+          { estimatedBagCount: Number(bagCount) }
         );
+        setLastBagCount(bagCount);
+        setTodayBagCount(Number(bagCount));
+        setSupplyState("placed");
       } catch (_error) {}
       setIsEditing(false);
       return;
     }
-    // Otherwise, create new request and store its id
-    try {
-      const response = await fetch(`${BASE_URL}/api/tea-supply-requests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          supplierId: 47,
-          estimatedBagCount: Number(bagCount),
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data && (data.id || data.requestId || data.request_id)) {
-          // Support 'id', 'requestId', and 'request_id' from backend
-          const newId = data.id || data.requestId || data.request_id;
-          setRequestId(newId); // Store the created request id for future updates
-          setTodayRequestId(newId);
+    // Prefer supplierData from AsyncStorage
+    let supplierId = null;
+    const supplierDataStr = await AsyncStorage.getItem("supplierData");
+    console.log("[DEBUG] supplierDataStr:", supplierDataStr);
+    if (supplierDataStr) {
+      try {
+        const supplierData = JSON.parse(supplierDataStr);
+        // supplierData could be array or object
+        if (Array.isArray(supplierData) && supplierData.length > 0) {
+          supplierId = supplierData[0].supplierId;
+        } else if (supplierData && supplierData.supplierId) {
+          supplierId = supplierData.supplierId;
         }
-        setLastBagCount(bagCount);
-        setTodayBagCount(Number(bagCount));
-        setSupplyState("placed");
+      } catch (e) {
+        console.log("[ERROR] Parsing supplierData:", e);
       }
-    } catch (_error) {}
+    }
+    // Do not fallback to userId. Only allow if supplierId is present.
+    console.log("[DEBUG] Creating supply request:", {
+      supplierId,
+      bagCount,
+      url: `${BASE_URL}/api/tea-supply-requests`,
+    });
+    if (!supplierId) {
+      console.warn(
+        "[WARN] No supplierId found in supplierData. Cannot create supply request."
+      );
+      return;
+    }
+    const response = await axios.post(`${BASE_URL}/api/tea-supply-requests`, {
+      supplierId: supplierId,
+      estimatedBagCount: Number(bagCount),
+    });
+    const data = response.data;
+    console.log("[DEBUG] Supply request response:", data);
+    if (data && (data.id || data.requestId || data.request_id)) {
+      // Support 'id', 'requestId', and 'request_id' from backend
+      const newId = data.id || data.requestId || data.request_id;
+      setRequestId(newId); // Store the created request id for future updates
+      setTodayRequestId(newId);
+    }
+    setLastBagCount(bagCount);
+    setTodayBagCount(Number(bagCount));
+    setSupplyState("placed");
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     // Delete supply request if exists
     if (requestId) {
-      fetch(`${BASE_URL}/api/tea-supply-requests/${requestId}`, {
-        method: "DELETE",
-      })
-        .then((res) => {
-          if (res.ok) {
-            setTodayRequestId(null);
-            setTodayBagCount(null);
-          }
-        })
-        .catch(() => {});
-      setRequestId(null);
+      try {
+        await axios.delete(`${BASE_URL}/api/tea-supply-requests/${requestId}`);
+        setTodayRequestId(null);
+        setTodayBagCount(null);
+        setRequestId(null);
+        setLastBagCount(null);
+        setSupplyState("none");
+      } catch (_error) {}
+    } else {
+      setLastBagCount(null);
+      setSupplyState("none");
     }
-    setLastBagCount(null);
-    setSupplyState("none");
     sheetRef.current?.close();
   };
 

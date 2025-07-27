@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
@@ -32,6 +33,7 @@ export default function SignupBasicForm() {
   const [message, setMessage] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
   const allFieldsFilled = Object.values(form).every((v) => v.trim().length > 0);
@@ -77,6 +79,7 @@ export default function SignupBasicForm() {
   const handleSignup = async () => {
     if (!validateForm()) return;
     setMessage(null);
+    setLoading(true);
 
     try {
       const userCred = await createUserWithEmailAndPassword(
@@ -114,6 +117,8 @@ export default function SignupBasicForm() {
         type: "error",
         text: error.message || "Something went wrong",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -246,12 +251,27 @@ export default function SignupBasicForm() {
               <TouchableOpacity
                 style={[
                   styles.nextBtn,
-                  !allFieldsFilled && { backgroundColor: "#bbb" },
+                  (!allFieldsFilled || loading) && { backgroundColor: "#bbb" },
                 ]}
-                disabled={!allFieldsFilled}
+                disabled={!allFieldsFilled || loading}
                 onPress={handleSignup}
               >
-                <Text style={styles.nextBtnText}>Sign up</Text>
+                {loading ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={[styles.nextBtnText, { marginLeft: 8 }]}>
+                      Signing up...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.nextBtnText}>Sign up</Text>
+                )}
               </TouchableOpacity>
 
               <View style={styles.loginRow}>

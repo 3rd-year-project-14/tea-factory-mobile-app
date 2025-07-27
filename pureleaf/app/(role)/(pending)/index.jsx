@@ -153,7 +153,14 @@ export default function PendingSupplyOnboarding() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const storedUserId = await AsyncStorage.getItem("userId");
+        const userDataStr = await AsyncStorage.getItem("userData");
+        if (!userDataStr) {
+          setStatus(null);
+          setLoading(false);
+          return;
+        }
+        const userData = JSON.parse(userDataStr);
+        const storedUserId = userData.userId || userData.id;
         if (!storedUserId) {
           setStatus(null);
           setLoading(false);
@@ -188,12 +195,13 @@ export default function PendingSupplyOnboarding() {
   const handleSubmitSupplierRequest = async () => {
     setSubmitting(true);
     try {
-      // Always get userId from AsyncStorage before sending supplier request
-      const storedUserId = await AsyncStorage.getItem("userId");
-      const supplierUserId =
-        storedUserId && !isNaN(Number(storedUserId))
-          ? Number(storedUserId)
-          : null;
+      // Always get userId from userData in AsyncStorage before sending supplier request
+      const userDataStr = await AsyncStorage.getItem("userData");
+      let supplierUserId = null;
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        supplierUserId = userData.userId || userData.id;
+      }
       console.log("Supplier userId:", supplierUserId);
       // Construct FormData for backend submission
       const supplierRequestData = {
