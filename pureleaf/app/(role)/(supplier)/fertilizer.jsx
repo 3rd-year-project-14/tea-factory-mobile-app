@@ -137,19 +137,23 @@ export default function FertilizerPage() {
         {/* Request Fertilizer Button & Next Button */}
         {fertilizerState === 'none' && (
           <>
+         
             <TouchableOpacity
               style={styles.requestButton}
               onPress={() => {
-                setFertilizerState('placed'); // Simulate placing order
-                // router.push('/(role)/(nontabsmanager)/order');
+                setFertilizerState('placed');
+                router.push('/(role)/(manager)/(nontabs)/order'); 
               }}
             >
               <Text style={styles.requestButtonText}>Request Fertilizer</Text>
             </TouchableOpacity>
-            {/* Next Button to simulate placing order */}
+
             <TouchableOpacity
               style={[styles.requestButton, { backgroundColor: '#aaa', marginTop: 8 }]}
-              onPress={() => setFertilizerState('placed')}
+              onPress={() => {
+                setFertilizerState('placed');
+                router.push('/(role)/(manager)/(nontabs)/order'); 
+              }}
             >
               <Text style={[styles.requestButtonText, { color: '#222' }]}>Next</Text>
             </TouchableOpacity>
