@@ -53,12 +53,20 @@ export default function SupplierHome({ navigation }) {
     const fetchSupplierRequests = async () => {
       setIsLoadingToday(true);
       try {
-        // Get supplierId from stored userData
-        const userDataStr = await AsyncStorage.getItem("userData");
+        // Get supplierId from stored supplierData
+        const supplierDataStr = await AsyncStorage.getItem("supplierData");
         let supplierId = null;
-        if (userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          supplierId = userData.userId || userData.id;
+        if (supplierDataStr) {
+          try {
+            const supplierData = JSON.parse(supplierDataStr);
+            if (Array.isArray(supplierData) && supplierData.length > 0) {
+              supplierId = supplierData[0].supplierId;
+            } else if (supplierData && supplierData.supplierId) {
+              supplierId = supplierData.supplierId;
+            }
+          } catch (e) {
+            supplierId = null;
+          }
         }
         if (!supplierId) {
           setTodayRequestId(null);

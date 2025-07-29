@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
-import { BASE_URL } from "../../../constants/ApiConfig";
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +13,9 @@ import {
   TextInput,
   Pressable,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { BASE_URL } from "../../../constants/ApiConfig";
 // import { Picker } from "@react-native-picker/picker"; // No longer needed
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -105,6 +106,9 @@ export default function SupplierHome() {
   // const [dropdownValue, setDropdownValue] = useState(""); // No longer needed
   const [customReason, setCustomReason] = useState("");
   const [afterFour, setAfterFour] = useState(false);
+  const [todayRequests, setTodayRequests] = useState([]);
+  const [todayRequestsModalVisible, setTodayRequestsModalVisible] =
+    useState(false);
   const [supplierModalVisible, setSupplierModalVisible] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [searchText, setSearchText] = useState("");
@@ -177,6 +181,23 @@ export default function SupplierHome() {
   const router = useRouter();
 
   const handleCheckIn = () => setModalVisible(true);
+
+  // Fetch today's supplier requests when simulating after 4pm
+  const handleSimulateAfterFour = async () => {
+    setAfterFour(true);
+    try {
+      if (driverId) {
+        const res = await axios.get(
+          `${BASE_URL}/api/tea-supply-today/${driverId}`
+        );
+        setTodayRequests(res.data.requests || []);
+      } else {
+        setTodayRequests([]);
+      }
+    } catch (_error) {
+      setTodayRequests([]);
+    }
+  };
   const handleYesCollecting = async () => {
     setModalVisible(false);
     try {
@@ -202,8 +223,8 @@ export default function SupplierHome() {
       } else {
         console.warn("Driver ID not found in storage");
       }
-    } catch (error) {
-      console.error("Error posting driver availability:", error);
+    } catch (_error) {
+      console.error("Error posting driver availability:", _error);
     }
   };
   const handleNoCollecting = () => {
@@ -235,8 +256,8 @@ export default function SupplierHome() {
       } else {
         console.warn("Driver ID not found in storage");
       }
-    } catch (error) {
-      console.error("Error posting driver not available:", error);
+    } catch (_error) {
+      console.error("Error posting driver not available:", _error);
     }
     setCustomReason("");
   };
@@ -277,8 +298,8 @@ export default function SupplierHome() {
       } else {
         console.warn("No driverAvailabilityId for update");
       }
-    } catch (error) {
-      console.error("Error updating driver availability:", error);
+    } catch (_error) {
+      console.error("Error updating driver availability:", _error);
     }
     setCustomReason("");
   };
@@ -303,8 +324,8 @@ export default function SupplierHome() {
       } else {
         console.warn("No driverAvailabilityId for update");
       }
-    } catch (error) {
-      console.error("Error updating driver availability:", error);
+    } catch (_error) {
+      console.error("Error updating driver availability:", _error);
     }
   };
   const handleEditNotCollectingCancel = () => {
@@ -375,7 +396,7 @@ export default function SupplierHome() {
           pageState === "checkedIn" &&
           !afterFour && (
             <>
-              <TouchableOpacity onPress={() => setAfterFour(true)}>
+              <TouchableOpacity onPress={handleSimulateAfterFour}>
                 <Text style={styles.simBtnText}>Simulate After 4:00 PM</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -385,6 +406,7 @@ export default function SupplierHome() {
                 <Text style={styles.checkedInTitle}>Checked In</Text>
                 <Text style={styles.editHint}>Tap to edit</Text>
               </TouchableOpacity>
+              {/* ...existing code for modals... */}
               {/* Edit Modal: Are you not collecting today? */}
               <Modal
                 visible={editModalVisible}
@@ -529,29 +551,173 @@ export default function SupplierHome() {
                 Today&apos;s Total Suppliers
               </Text>
               <Text style={styles.supplierCountNum}>
-                {suppliers.length}{" "}
+                {todayRequests.length}{" "}
                 <Text style={styles.supplierCountUnit}>Suppliers</Text>
               </Text>
-              <Text style={styles.supplierCountHint}>Tap to view details</Text>
-
-              {/* Simulate Ready Button */}
-              {!readySimulated && (
-                <TouchableOpacity onPress={() => setReadySimulated(true)}>
-                  <Text style={styles.simulateReadyBtnText}>
-                    Simulate Ready
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={() => setTodayRequestsModalVisible(true)}
+              >
+                <Text style={styles.supplierCountHint}>
+                  Tap to view details
+                </Text>
+              </TouchableOpacity>
             </View>
+            {/* Simulate Ready Button below the card */}
+            {!readySimulated && (
+              <TouchableOpacity
+                style={[styles.startTripBtn, { marginBottom: 40 }]} // Add extra space below
+                onPress={() => setReadySimulated(true)}
+              >
+                <Text style={styles.startTripBtnText}>Simulate Ready</Text>
+              </TouchableOpacity>
+            )}
             {/* Start Trip Button */}
             {readySimulated && (
               <TouchableOpacity
-                style={styles.startTripBtn}
-                onPress={() => router.push("/(role)/(driver)/(nontabs)/trip")}
+                style={[styles.startTripBtn, { marginBottom: 40 }]}
+                onPress={async () => {
+                  Alert.alert(
+                    "Start Trip",
+                    "Are you sure you want to start the trip?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Start",
+                        style: "default",
+                        onPress: async () => {
+                          try {
+                            // Get driverId and routeId from stored driverData
+                            const driverDataStr =
+                              await AsyncStorage.getItem("driverData");
+                            let driverId = null;
+                            let routeId = null;
+                            if (driverDataStr) {
+                              const driverData = JSON.parse(driverDataStr);
+                              driverId = driverData.driverId || driverData.id;
+                              routeId = driverData.routeId;
+                            }
+                            if (driverId && routeId) {
+                              const tripRes = await axios.post(
+                                `${BASE_URL}/api/trips`,
+                                {
+                                  driverId,
+                                  routeId,
+                                }
+                              );
+                              // Store tripId in AsyncStorage for later use
+                              if (tripRes.data && tripRes.data.tripId) {
+                                await AsyncStorage.setItem(
+                                  "tripId",
+                                  tripRes.data.tripId.toString()
+                                );
+                              }
+                            }
+                          } catch (_error) {
+                            // Optionally show error alert
+                            Alert.alert(
+                              "Error",
+                              "Failed to start trip. Please try again."
+                            );
+                            return;
+                          }
+                          router.push("/(role)/(driver)/(nontabs)/trip");
+                        },
+                      },
+                    ]
+                  );
+                }}
               >
                 <Text style={styles.startTripBtnText}>Start Trip</Text>
               </TouchableOpacity>
             )}
+            {/* Modal for today's supplier requests - half screen, scrollable, dismiss on overlay press */}
+            <Modal
+              visible={todayRequestsModalVisible}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setTodayRequestsModalVisible(false)}
+            >
+              <Pressable
+                style={{
+                  flex: 1,
+                  justifyContent: "flex-end",
+                  backgroundColor: "rgba(0,0,0,0.22)",
+                }}
+                onPress={() => setTodayRequestsModalVisible(false)}
+              >
+                <Pressable
+                  style={{
+                    backgroundColor: "#fff",
+                    borderTopLeftRadius: 24,
+                    borderTopRightRadius: 24,
+                    paddingHorizontal: 24,
+                    paddingTop: 18,
+                    paddingBottom: 12,
+                    alignItems: "center",
+                    height: "50%",
+                    maxHeight: "50%",
+                    width: "100%",
+                  }}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <Text
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      marginBottom: 12,
+                    }}
+                  >
+                    Today&apos;s Suppliers
+                  </Text>
+                  <ScrollView
+                    style={{ width: "100%" }}
+                    contentContainerStyle={{ paddingBottom: 16 }}
+                  >
+                    {todayRequests.length === 0 && (
+                      <Text
+                        style={{
+                          color: "#888",
+                          fontSize: 16,
+                          textAlign: "center",
+                        }}
+                      >
+                        No suppliers found.
+                      </Text>
+                    )}
+                    {todayRequests.map((req) => (
+                      <View
+                        key={req.requestId}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 14,
+                          borderBottomWidth: 1,
+                          borderBottomColor: "#eaf2ea",
+                          width: "100%",
+                        }}
+                      >
+                        <Image
+                          source={
+                            req.image
+                              ? { uri: req.image }
+                              : require("../../../assets/images/propic.jpg")
+                          }
+                          style={styles.supplierAvatar}
+                        />
+                        <View>
+                          <Text style={styles.listSupplierName}>
+                            {req.supplierName}
+                          </Text>
+                          <Text style={styles.listSupplierBags}>
+                            {req.estimatedBagCount} Bags
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </Pressable>
+              </Pressable>
+            </Modal>
           </>
         )}
       </ScrollView>
@@ -1017,7 +1183,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     alignItems: "center",
-    maxHeight: "80%",
+    maxHeight: "50%", // Half screen
+    height: "50%", // Half screen
   },
   mapImage: {
     width: "100%",
