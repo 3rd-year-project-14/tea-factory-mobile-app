@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
-import { BASE_URL } from "../../../constants/ApiConfig";
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +13,9 @@ import {
   TextInput,
   Pressable,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { BASE_URL } from "../../../constants/ApiConfig";
 // import { Picker } from "@react-native-picker/picker"; // No longer needed
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -193,7 +194,7 @@ export default function SupplierHome() {
       } else {
         setTodayRequests([]);
       }
-    } catch (error) {
+    } catch (_error) {
       setTodayRequests([]);
     }
   };
@@ -222,8 +223,8 @@ export default function SupplierHome() {
       } else {
         console.warn("Driver ID not found in storage");
       }
-    } catch (error) {
-      console.error("Error posting driver availability:", error);
+    } catch (_error) {
+      console.error("Error posting driver availability:", _error);
     }
   };
   const handleNoCollecting = () => {
@@ -255,8 +256,8 @@ export default function SupplierHome() {
       } else {
         console.warn("Driver ID not found in storage");
       }
-    } catch (error) {
-      console.error("Error posting driver not available:", error);
+    } catch (_error) {
+      console.error("Error posting driver not available:", _error);
     }
     setCustomReason("");
   };
@@ -297,8 +298,8 @@ export default function SupplierHome() {
       } else {
         console.warn("No driverAvailabilityId for update");
       }
-    } catch (error) {
-      console.error("Error updating driver availability:", error);
+    } catch (_error) {
+      console.error("Error updating driver availability:", _error);
     }
     setCustomReason("");
   };
@@ -323,8 +324,8 @@ export default function SupplierHome() {
       } else {
         console.warn("No driverAvailabilityId for update");
       }
-    } catch (error) {
-      console.error("Error updating driver availability:", error);
+    } catch (_error) {
+      console.error("Error updating driver availability:", _error);
     }
   };
   const handleEditNotCollectingCancel = () => {
@@ -574,7 +575,57 @@ export default function SupplierHome() {
             {readySimulated && (
               <TouchableOpacity
                 style={[styles.startTripBtn, { marginBottom: 40 }]}
-                onPress={() => router.push("/(role)/(driver)/(nontabs)/trip")}
+                onPress={async () => {
+                  Alert.alert(
+                    "Start Trip",
+                    "Are you sure you want to start the trip?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Start",
+                        style: "default",
+                        onPress: async () => {
+                          try {
+                            // Get driverId and routeId from stored driverData
+                            const driverDataStr =
+                              await AsyncStorage.getItem("driverData");
+                            let driverId = null;
+                            let routeId = null;
+                            if (driverDataStr) {
+                              const driverData = JSON.parse(driverDataStr);
+                              driverId = driverData.driverId || driverData.id;
+                              routeId = driverData.routeId;
+                            }
+                            if (driverId && routeId) {
+                              const tripRes = await axios.post(
+                                `${BASE_URL}/api/trips`,
+                                {
+                                  driverId,
+                                  routeId,
+                                }
+                              );
+                              // Store tripId in AsyncStorage for later use
+                              if (tripRes.data && tripRes.data.tripId) {
+                                await AsyncStorage.setItem(
+                                  "tripId",
+                                  tripRes.data.tripId.toString()
+                                );
+                              }
+                            }
+                          } catch (_error) {
+                            // Optionally show error alert
+                            Alert.alert(
+                              "Error",
+                              "Failed to start trip. Please try again."
+                            );
+                            return;
+                          }
+                          router.push("/(role)/(driver)/(nontabs)/trip");
+                        },
+                      },
+                    ]
+                  );
+                }}
               >
                 <Text style={styles.startTripBtnText}>Start Trip</Text>
               </TouchableOpacity>
