@@ -1,6 +1,5 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect } from "react";
 import {
   View,
   Text,
@@ -13,9 +12,8 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter} from "expo-router";
 import RBSheet from "react-native-raw-bottom-sheet";
-import { Ionicons } from "@expo/vector-icons";
 
 import { BASE_URL } from "../../../constants/ApiConfig";
 import axios from "axios";
@@ -45,7 +43,7 @@ export default function SupplierHome({ navigation }) {
           const userData = JSON.parse(userDataStr);
           setUserName(userData.name || "");
         }
-      } catch (e) {
+      } catch (_error) {
         setUserName("");
       }
     };
@@ -64,7 +62,7 @@ export default function SupplierHome({ navigation }) {
             } else if (supplierData && supplierData.supplierId) {
               supplierId = supplierData.supplierId;
             }
-          } catch (e) {
+          } catch (_error) {
             supplierId = null;
           }
         }
@@ -175,7 +173,6 @@ export default function SupplierHome({ navigation }) {
     // Prefer supplierData from AsyncStorage
     let supplierId = null;
     const supplierDataStr = await AsyncStorage.getItem("supplierData");
-    console.log("[DEBUG] supplierDataStr:", supplierDataStr);
     if (supplierDataStr) {
       try {
         const supplierData = JSON.parse(supplierDataStr);
@@ -189,12 +186,6 @@ export default function SupplierHome({ navigation }) {
         console.log("[ERROR] Parsing supplierData:", e);
       }
     }
-    // Do not fallback to userId. Only allow if supplierId is present.
-    console.log("[DEBUG] Creating supply request:", {
-      supplierId,
-      bagCount,
-      url: `${BASE_URL}/api/tea-supply-requests`,
-    });
     if (!supplierId) {
       console.warn(
         "[WARN] No supplierId found in supplierData. Cannot create supply request."
@@ -206,7 +197,6 @@ export default function SupplierHome({ navigation }) {
       estimatedBagCount: Number(bagCount),
     });
     const data = response.data;
-    console.log("[DEBUG] Supply request response:", data);
     if (data && (data.id || data.requestId || data.request_id)) {
       // Support 'id', 'requestId', and 'request_id' from backend
       const newId = data.id || data.requestId || data.request_id;

@@ -16,11 +16,9 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { BASE_URL } from "../../../constants/ApiConfig";
-// import { Picker } from "@react-native-picker/picker"; // No longer needed
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
-// const reasons = ["Fever", "Rain", "No Leaves", "Personal", "Other"]; // No longer needed
+import { useFocusEffect } from "@react-navigation/native";
 
 // 6 Sri Lankan supplier samples
 const suppliers = [
@@ -94,6 +92,7 @@ const suppliers = [
 
 export default function SupplierHome() {
   const [userName, setUserName] = useState("");
+  const [isAfterFour, setIsAfterFour] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [pickerModalVisible, setPickerModalVisible] = useState(false);
   const [pageState, setPageState] = useState("main");
@@ -103,76 +102,137 @@ export default function SupplierHome() {
   const [editNotCollectingModalVisible, setEditNotCollectingModalVisible] =
     useState(false);
   const [driverAvailabilityId, setDriverAvailabilityId] = useState(null);
-  // const [dropdownValue, setDropdownValue] = useState(""); // No longer needed
   const [customReason, setCustomReason] = useState("");
-  const [afterFour, setAfterFour] = useState(false);
   const [todayRequests, setTodayRequests] = useState([]);
   const [todayRequestsModalVisible, setTodayRequestsModalVisible] =
     useState(false);
   const [supplierModalVisible, setSupplierModalVisible] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [searchText, setSearchText] = useState("");
-  const [readySimulated, setReadySimulated] = useState(false);
-  // const [showStartTrip, setShowStartTrip] = useState(false); // No longer needed
   const [driverId, setDriverId] = useState(null);
-  const [isCheckedInToday, setIsCheckedInToday] = useState(null); // null = loading, true/false = loaded
+  const [isCheckedInToday, setIsCheckedInToday] = useState(null);
+  const [todayTripId, setTodayTripId] = useState(null);
+  const [todayTripStatus, setTodayTripStatus] = useState(null);
+  const [tripBagSummaryModalVisible, setTripBagSummaryModalVisible] = useState(false);
+  const [tripBagSummary, setTripBagSummary] = useState([]);
 
+  // Check local time for 4:00 PM and update isAfterFour
   useEffect(() => {
-    const loadUserAndCheckIn = async () => {
-      try {
-        // Load user name
-        const userDataStr = await AsyncStorage.getItem("userData");
-        if (userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          setUserName(userData.name || "");
-        }
-        // Load driverId
-        const driverDataStr = await AsyncStorage.getItem("driverData");
-        let _driverId = null;
-        if (driverDataStr) {
-          const driverData = JSON.parse(driverDataStr);
-          _driverId = driverData.id || driverData.driverId;
-          setDriverId(_driverId);
-        }
-        // Check today's driver-availability row
-        if (_driverId) {
-          try {
-            const res = await axios.get(
-              `${BASE_URL}/api/driver-availability/today/${_driverId}`
-            );
-            if (!res.data || Object.keys(res.data).length === 0) {
-              // No row for today: show check-in button
+    const checkTime = () => {
+      const now = new Date();
+      if (now.getHours() >= 16) {
+        setIsAfterFour(true);
+      } else {
+        setIsAfterFour(false);
+      }
+    };
+    checkTime();
+    const timer = setInterval(checkTime, 60000); // Check every minute
+    return () => clearInterval(timer);
+  }, [router]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUserAndCheckIn = async () => {
+        try {
+          // Load user name
+          const userDataStr = await AsyncStorage.getItem("userData");
+          if (userDataStr) {
+            const userData = JSON.parse(userDataStr);
+            setUserName(userData.name || "");
+          }
+          // Load driverId
+          const driverDataStr = await AsyncStorage.getItem("driverData");
+          let _driverId = null;
+          if (driverDataStr) {
+            const driverData = JSON.parse(driverDataStr);
+            _driverId = driverData.id || driverData.driverId;
+            setDriverId(_driverId);
+          }
+
+          // Check today's trip
+          if (_driverId) {
+            try {
+              const todayTripRes = await axios.get(
+                `${BASE_URL}/api/trips/today/${_driverId}`
+              );
+              if (todayTripRes.data && todayTripRes.data.tripId) {
+                setTodayTripId(todayTripRes.data.tripId);
+                setTodayTripStatus(todayTripRes.data.status);
+                await AsyncStorage.setItem(
+                  "tripId",
+                  todayTripRes.data.tripId.toString()
+                );
+                // Only go to trip if status is pending
+                if (todayTripRes.data.status === "pending") {
+                  router.push("/(role)/(driver)/(nontabs)/trip");
+                }
+              } else {
+                setTodayTripId(null);
+                setTodayTripStatus(null);
+              }
+            } catch {
+              setTodayTripId(null);
+              setTodayTripStatus(null);
+            }
+          }
+          // Check today's driver-availability row
+          if (_driverId) {
+            try {
+              const res = await axios.get(
+                `${BASE_URL}/api/driver-availability/today/${_driverId}`
+              );
+              if (!res.data || Object.keys(res.data).length === 0) {
+                // No row for today: show check-in button
+                setIsCheckedInToday(false);
+                setPageState("main");
+                setDriverAvailabilityId(null);
+              } else if (res.data.isAvailable) {
+                // Checked in: show checked-in card
+                setIsCheckedInToday(true);
+                setPageState("checkedIn");
+                setDriverAvailabilityId(res.data.id);
+              } else {
+                // Not collecting: show not-collecting card with reason
+                setIsCheckedInToday(false);
+                setNotCollectingReason(res.data.reason || "");
+                setPageState("notCollectingSet");
+                setDriverAvailabilityId(res.data.id);
+              }
+            } catch {
               setIsCheckedInToday(false);
               setPageState("main");
-              setDriverAvailabilityId(null);
-            } else if (res.data.isAvailable) {
-              // Checked in: show checked-in card
-              setIsCheckedInToday(true);
-              setPageState("checkedIn");
-              setDriverAvailabilityId(res.data.id);
-            } else {
-              // Not collecting: show not-collecting card with reason
-              setIsCheckedInToday(false);
-              setNotCollectingReason(res.data.reason || "");
-              setPageState("notCollectingSet");
-              setDriverAvailabilityId(res.data.id);
             }
-          } catch {
+          } else {
             setIsCheckedInToday(false);
             setPageState("main");
           }
-        } else {
+        } catch {
+          setUserName("");
           setIsCheckedInToday(false);
           setPageState("main");
         }
-      } catch {
-        setUserName("");
-        setIsCheckedInToday(false);
-        setPageState("main");
+      };
+      loadUserAndCheckIn();
+    }, [router])
+  );
+
+  // Fetch today's suppliers when checked in
+  useEffect(() => {
+    const fetchTodaySuppliers = async () => {
+      if (isCheckedInToday === true && driverId) {
+        try {
+          const res = await axios.get(
+            `${BASE_URL}/api/tea-supply-today/${driverId}`
+          );
+          setTodayRequests(res.data.requests || []);
+        } catch (_error) {
+          setTodayRequests([]);
+        }
       }
     };
-    loadUserAndCheckIn();
-  }, []);
+    fetchTodaySuppliers();
+  }, [isCheckedInToday, driverId]);
 
   const filteredSuppliers = suppliers.filter((s) =>
     s.name.toLowerCase().includes(searchText.toLowerCase())
@@ -182,22 +242,7 @@ export default function SupplierHome() {
 
   const handleCheckIn = () => setModalVisible(true);
 
-  // Fetch today's supplier requests when simulating after 4pm
-  const handleSimulateAfterFour = async () => {
-    setAfterFour(true);
-    try {
-      if (driverId) {
-        const res = await axios.get(
-          `${BASE_URL}/api/tea-supply-today/${driverId}`
-        );
-        setTodayRequests(res.data.requests || []);
-      } else {
-        setTodayRequests([]);
-      }
-    } catch (_error) {
-      setTodayRequests([]);
-    }
-  };
+  // Removed handleSimulateAfterFour and setAfterFour, no longer needed
   const handleYesCollecting = async () => {
     setModalVisible(false);
     try {
@@ -380,32 +425,263 @@ export default function SupplierHome() {
         </View>
 
         {/* Check In Button or Checked In Card based on today's status */}
-        {isCheckedInToday === null && !afterFour && (
+        {isCheckedInToday === null && (
           <View style={{ alignItems: "center", marginTop: 30 }}>
             <Text style={{ color: "#888", fontSize: 18 }}>
               Loading status...
             </Text>
           </View>
         )}
-        {isCheckedInToday === false && pageState === "main" && !afterFour && (
+        {isCheckedInToday === false && pageState === "main" && (
           <TouchableOpacity style={styles.checkInBtn} onPress={handleCheckIn}>
             <Text style={styles.checkInText}>Check In</Text>
           </TouchableOpacity>
         )}
-        {isCheckedInToday === true &&
-          pageState === "checkedIn" &&
-          !afterFour && (
-            <>
-              <TouchableOpacity onPress={handleSimulateAfterFour}>
-                <Text style={styles.simBtnText}>Simulate After 4:00 PM</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.checkedInCard}
-                onPress={handleEditCheckedIn}
+
+        {/* If trip exists and status is completed, show All Trips Completed below wallet */}
+        {todayTripId && todayTripStatus === "completed" && (
+          <View style={styles.checkedInCard}>
+            <Text style={styles.checkedInTitle}>All Trips Completed</Text>
+            <TouchableOpacity
+              onPress={async () => {
+                // Fetch trip bag summary for this trip
+                try {
+                  const res = await axios.get(
+                    `${BASE_URL}/api/trip-bags/summary/by-trip/${todayTripId}`
+                  );
+                  setTripBagSummary(res.data || []);
+                } catch {
+                  setTripBagSummary([]);
+                }
+                setTripBagSummaryModalVisible(true);
+              }}
+            >
+              <Text style={styles.supplierCountHint}>Tap to view details</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {/* Trip Bag Summary Modal for All Trips Completed */}
+        <Modal
+          visible={tripBagSummaryModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setTripBagSummaryModalVisible(false)}
+        >
+          <Pressable
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              backgroundColor: "rgba(0,0,0,0.22)",
+            }}
+            onPress={() => setTripBagSummaryModalVisible(false)}
+          >
+            <Pressable
+              style={{
+                backgroundColor: "#fff",
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                paddingHorizontal: 24,
+                paddingTop: 18,
+                paddingBottom: 12,
+                alignItems: "center",
+                height: "50%",
+                maxHeight: "50%",
+                width: "100%",
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  marginBottom: 12,
+                }}
               >
-                <Text style={styles.checkedInTitle}>Checked In</Text>
-                <Text style={styles.editHint}>Tap to edit</Text>
-              </TouchableOpacity>
+                Trips Summary
+              </Text>
+              <ScrollView
+                style={{ width: "100%" }}
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                {tripBagSummary.length === 0 && (
+                  <Text
+                    style={{
+                      color: "#888",
+                      fontSize: 16,
+                      textAlign: "center",
+                    }}
+                  >
+                    No summary found.
+                  </Text>
+                )}
+                {tripBagSummary.map((summary) => {
+                  // Try to find supplier name from todayRequests or suppliers
+                  let supplierName = "Supplier";
+                  let supplierImage = require("../../../assets/images/propic.jpg");
+                  // Correct matching: todayRequests.requestId === summary.supplyRequestId
+                  let req = todayRequests.find(
+                    (r) => r.requestId === summary.supplyRequestId
+                  );
+                  if (req) {
+                    supplierName = req.supplierName;
+                    if (req.image) supplierImage = { uri: req.image };
+                  } else {
+                    // fallback: try to match by id in suppliers array
+                    let s = suppliers.find(
+                      (sup) => sup.id === summary.supplyRequestId
+                    );
+                    if (s) {
+                      supplierName = s.name;
+                      supplierImage = s.image;
+                    }
+                  }
+                  return (
+                    <View
+                      key={summary.supplyRequestId}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: 14,
+                        borderBottomWidth: 1,
+                        borderBottomColor: "#eaf2ea",
+                        width: "100%",
+                      }}
+                    >
+                      <Image
+                        source={supplierImage}
+                        style={styles.supplierAvatar}
+                      />
+                      <View>
+                        <Text style={styles.listSupplierName}>
+                          {supplierName}
+                        </Text>
+                        <Text style={styles.listSupplierBags}>
+                          {summary.totalBags} Bags - {summary.totalWeight} kg
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* If trip does not exist or is pending, show normal checked-in UI */}
+        {(!todayTripId || todayTripStatus === "pending") &&
+          isCheckedInToday === true &&
+          pageState === "checkedIn" && (
+            <>
+              {/* Simulate After 4.00 PM or Simulate Ready text */}
+              <View
+                style={{ marginHorizontal: 18, marginTop: 0, marginBottom: 10 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#165E52",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                  }}
+                >
+                  {isAfterFour ? "Simulate Ready" : "Simulate After 4.00 PM"}
+                </Text>
+              </View>
+              {/* Checked-in card only before 4pm */}
+              {!isAfterFour && (
+                <View>
+                  <TouchableOpacity
+                    style={styles.checkedInCard}
+                    onPress={handleEditCheckedIn}
+                  >
+                    <Text style={styles.checkedInTitle}>Checked In</Text>
+                    <Text style={styles.editHint}>Tap to edit</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {/* Show Today's Total Suppliers below checked in card */}
+              <View style={styles.supplierCountCard}>
+                <Text style={styles.supplierCountTitle}>
+                  Today&apos;s Total Suppliers
+                </Text>
+                <Text style={styles.supplierCountNum}>
+                  {todayRequests.length}{" "}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setTodayRequestsModalVisible(true)}
+                >
+                  <Text style={styles.supplierCountHint}>
+                    Tap to view details
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {/* Start Trip button only after 4pm and if there are requests for today */}
+              {isAfterFour && todayRequests.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.startTripBtn, { marginBottom: 40 }]}
+                  onPress={async () => {
+                    // Get driverId and routeId from stored driverData
+                    const driverDataStr =
+                      await AsyncStorage.getItem("driverData");
+                    let driverId = null;
+                    let routeId = null;
+                    if (driverDataStr) {
+                      const driverData = JSON.parse(driverDataStr);
+                      driverId = driverData.driverId || driverData.id;
+                      routeId = driverData.routeId;
+                    }
+                    if (!driverId || !routeId) {
+                      Alert.alert("Error", "Driver or route not found.");
+                      return;
+                    }
+                    if (todayTripId) {
+                      // Trip already exists, go to trip screen
+                      router.push("/(role)/(driver)/(nontabs)/trip");
+                      return;
+                    }
+                    // Confirm before creating new trip
+                    Alert.alert(
+                      "Start Trip",
+                      "Are you sure you want to start the trip?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Start",
+                          style: "default",
+                          onPress: async () => {
+                            try {
+                              const tripRes = await axios.post(
+                                `${BASE_URL}/api/trips`,
+                                {
+                                  driverId,
+                                  routeId,
+                                }
+                              );
+                              if (tripRes.data && tripRes.data.tripId) {
+                                await AsyncStorage.setItem(
+                                  "tripId",
+                                  tripRes.data.tripId.toString()
+                                );
+                                setTodayTripId(tripRes.data.tripId);
+                                setTodayTripStatus("pending");
+                              }
+                            } catch (_error) {
+                              Alert.alert(
+                                "Error",
+                                "Failed to start trip. Please try again."
+                              );
+                              return;
+                            }
+                            router.push("/(role)/(driver)/(nontabs)/trip");
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={styles.startTripBtnText}>Start Trip</Text>
+                </TouchableOpacity>
+              )}
               {/* ...existing code for modals... */}
               {/* Edit Modal: Are you not collecting today? */}
               <Modal
@@ -487,11 +763,99 @@ export default function SupplierHome() {
                   </View>
                 </View>
               </Modal>
+              {/* Modal for today's supplier requests - half screen, scrollable, dismiss on overlay press */}
+              <Modal
+                visible={todayRequestsModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setTodayRequestsModalVisible(false)}
+              >
+                <Pressable
+                  style={{
+                    flex: 1,
+                    justifyContent: "flex-end",
+                    backgroundColor: "rgba(0,0,0,0.22)",
+                  }}
+                  onPress={() => setTodayRequestsModalVisible(false)}
+                >
+                  <Pressable
+                    style={{
+                      backgroundColor: "#fff",
+                      borderTopLeftRadius: 24,
+                      borderTopRightRadius: 24,
+                      paddingHorizontal: 24,
+                      paddingTop: 18,
+                      paddingBottom: 12,
+                      alignItems: "center",
+                      height: "50%",
+                      maxHeight: "50%",
+                      width: "100%",
+                    }}
+                    onPress={(e) => e.stopPropagation()}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 20,
+                        fontWeight: "bold",
+                        marginBottom: 12,
+                      }}
+                    >
+                      Today&apos;s Suppliers
+                    </Text>
+                    <ScrollView
+                      style={{ width: "100%" }}
+                      contentContainerStyle={{ paddingBottom: 16 }}
+                    >
+                      {todayRequests.length === 0 && (
+                        <Text
+                          style={{
+                            color: "#888",
+                            fontSize: 16,
+                            textAlign: "center",
+                          }}
+                        >
+                          No suppliers found.
+                        </Text>
+                      )}
+                      {todayRequests.map((req) => (
+                        <View
+                          key={req.requestId}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingVertical: 14,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#eaf2ea",
+                            width: "100%",
+                          }}
+                        >
+                          <Image
+                            source={
+                              req.image
+                                ? { uri: req.image }
+                                : require("../../../assets/images/propic.jpg")
+                            }
+                            style={styles.supplierAvatar}
+                          />
+                          <View>
+                            <Text style={styles.listSupplierName}>
+                              {req.supplierName}
+                            </Text>
+                            <Text style={styles.listSupplierBags}>
+                              {req.estimatedBagCount} Bags
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </Pressable>
+                </Pressable>
+              </Modal>
             </>
           )}
 
         {/* Not Collecting Card */}
-        {pageState === "notCollectingSet" && !afterFour && (
+        {pageState === "notCollectingSet" && (
           <>
             <TouchableOpacity
               style={styles.notCollectingCard}
@@ -542,188 +906,8 @@ export default function SupplierHome() {
             </Modal>
           </>
         )}
-
-        {/* After-4 Supplier Count Card with Simulate Ready and Start Trip */}
-        {afterFour && (
-          <>
-            <View style={styles.supplierCountCard}>
-              <Text style={styles.supplierCountTitle}>
-                Today&apos;s Total Suppliers
-              </Text>
-              <Text style={styles.supplierCountNum}>
-                {todayRequests.length}{" "}
-                <Text style={styles.supplierCountUnit}>Suppliers</Text>
-              </Text>
-              <TouchableOpacity
-                onPress={() => setTodayRequestsModalVisible(true)}
-              >
-                <Text style={styles.supplierCountHint}>
-                  Tap to view details
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {/* Simulate Ready Button below the card */}
-            {!readySimulated && (
-              <TouchableOpacity
-                style={[styles.startTripBtn, { marginBottom: 40 }]} // Add extra space below
-                onPress={() => setReadySimulated(true)}
-              >
-                <Text style={styles.startTripBtnText}>Simulate Ready</Text>
-              </TouchableOpacity>
-            )}
-            {/* Start Trip Button */}
-            {readySimulated && (
-              <TouchableOpacity
-                style={[styles.startTripBtn, { marginBottom: 40 }]}
-                onPress={async () => {
-                  Alert.alert(
-                    "Start Trip",
-                    "Are you sure you want to start the trip?",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Start",
-                        style: "default",
-                        onPress: async () => {
-                          try {
-                            // Get driverId and routeId from stored driverData
-                            const driverDataStr =
-                              await AsyncStorage.getItem("driverData");
-                            let driverId = null;
-                            let routeId = null;
-                            if (driverDataStr) {
-                              const driverData = JSON.parse(driverDataStr);
-                              driverId = driverData.driverId || driverData.id;
-                              routeId = driverData.routeId;
-                            }
-                            if (driverId && routeId) {
-                              const tripRes = await axios.post(
-                                `${BASE_URL}/api/trips`,
-                                {
-                                  driverId,
-                                  routeId,
-                                }
-                              );
-                              // Store tripId in AsyncStorage for later use
-                              if (tripRes.data && tripRes.data.tripId) {
-                                await AsyncStorage.setItem(
-                                  "tripId",
-                                  tripRes.data.tripId.toString()
-                                );
-                              }
-                            }
-                          } catch (_error) {
-                            // Optionally show error alert
-                            Alert.alert(
-                              "Error",
-                              "Failed to start trip. Please try again."
-                            );
-                            return;
-                          }
-                          router.push("/(role)/(driver)/(nontabs)/trip");
-                        },
-                      },
-                    ]
-                  );
-                }}
-              >
-                <Text style={styles.startTripBtnText}>Start Trip</Text>
-              </TouchableOpacity>
-            )}
-            {/* Modal for today's supplier requests - half screen, scrollable, dismiss on overlay press */}
-            <Modal
-              visible={todayRequestsModalVisible}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setTodayRequestsModalVisible(false)}
-            >
-              <Pressable
-                style={{
-                  flex: 1,
-                  justifyContent: "flex-end",
-                  backgroundColor: "rgba(0,0,0,0.22)",
-                }}
-                onPress={() => setTodayRequestsModalVisible(false)}
-              >
-                <Pressable
-                  style={{
-                    backgroundColor: "#fff",
-                    borderTopLeftRadius: 24,
-                    borderTopRightRadius: 24,
-                    paddingHorizontal: 24,
-                    paddingTop: 18,
-                    paddingBottom: 12,
-                    alignItems: "center",
-                    height: "50%",
-                    maxHeight: "50%",
-                    width: "100%",
-                  }}
-                  onPress={(e) => e.stopPropagation()}
-                >
-                  <Text
-                    style={{
-                      fontSize: 20,
-                      fontWeight: "bold",
-                      marginBottom: 12,
-                    }}
-                  >
-                    Today&apos;s Suppliers
-                  </Text>
-                  <ScrollView
-                    style={{ width: "100%" }}
-                    contentContainerStyle={{ paddingBottom: 16 }}
-                  >
-                    {todayRequests.length === 0 && (
-                      <Text
-                        style={{
-                          color: "#888",
-                          fontSize: 16,
-                          textAlign: "center",
-                        }}
-                      >
-                        No suppliers found.
-                      </Text>
-                    )}
-                    {todayRequests.map((req) => (
-                      <View
-                        key={req.requestId}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          paddingVertical: 14,
-                          borderBottomWidth: 1,
-                          borderBottomColor: "#eaf2ea",
-                          width: "100%",
-                        }}
-                      >
-                        <Image
-                          source={
-                            req.image
-                              ? { uri: req.image }
-                              : require("../../../assets/images/propic.jpg")
-                          }
-                          style={styles.supplierAvatar}
-                        />
-                        <View>
-                          <Text style={styles.listSupplierName}>
-                            {req.supplierName}
-                          </Text>
-                          <Text style={styles.listSupplierBags}>
-                            {req.estimatedBagCount} Bags
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </Pressable>
-              </Pressable>
-            </Modal>
-          </>
-        )}
       </ScrollView>
-      {/* ...rest of your modals and code... */}
-      {/* (No changes below this line) */}
-      {/* First Modal: Are you collecting today? */}
+
       <Modal
         visible={modalVisible}
         transparent
@@ -1133,14 +1317,16 @@ const styles = StyleSheet.create({
   },
   supplierCountCard: {
     backgroundColor: "#eaf2ea",
-    marginTop: 18,
     marginHorizontal: 18,
-    borderRadius: 18,
-    padding: 22,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 15,
     alignItems: "center",
-    elevation: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#b0c2b0",
     shadowColor: "#000",
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.04,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
   },
@@ -1156,7 +1342,7 @@ const styles = StyleSheet.create({
     color: "#183d2b",
   },
   supplierCountUnit: {
-    fontSize: 18,
+    fontSize: 38,
     color: "#888",
     fontWeight: "400",
   },

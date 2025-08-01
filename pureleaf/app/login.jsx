@@ -75,7 +75,6 @@ export default function LoginScreen() {
 
       // Get user info from backend
       const data = await response.json();
-      console.log("[FETCHED] User data from backend:", data);
       const userRole = data.role?.toLowerCase();
       const userId = data.userId || data.id;
 
@@ -86,13 +85,7 @@ export default function LoginScreen() {
             `${BASE_URL}/api/drivers/user/${userId}`
           );
           const driverData = driverRes.data;
-          console.log("[FETCHED] Driver data:", driverData);
           await AsyncStorage.setItem("driverData", JSON.stringify(driverData));
-          const storedDriverData = await AsyncStorage.getItem("driverData");
-          console.log(
-            "[STORED] Driver data in AsyncStorage:",
-            storedDriverData
-          );
         } catch (err) {
           if (err.response) {
             console.warn(
@@ -106,8 +99,6 @@ export default function LoginScreen() {
         }
         // Store user data from login response
         await AsyncStorage.setItem("userData", JSON.stringify(data));
-        const storedUserData = await AsyncStorage.getItem("userData");
-        console.log("[STORED] User data in AsyncStorage:", storedUserData);
 
         // Fetch supplier request data and store in AsyncStorage
         try {
@@ -116,19 +107,9 @@ export default function LoginScreen() {
           );
           if (supplierReqRes.ok) {
             const supplierRequestData = await supplierReqRes.json();
-            console.log(
-              "[FETCHED] Supplier request data:",
-              supplierRequestData
-            );
             await AsyncStorage.setItem(
               "supplierRequest",
               JSON.stringify(supplierRequestData)
-            );
-            const storedSupplierRequest =
-              await AsyncStorage.getItem("supplierRequest");
-            console.log(
-              "[STORED] Supplier request data in AsyncStorage:",
-              storedSupplierRequest
             );
           } else {
             console.warn("Failed to fetch supplier request data");
@@ -144,16 +125,9 @@ export default function LoginScreen() {
           );
           if (supplierTableRes.ok) {
             const supplierTableData = await supplierTableRes.json();
-            console.log("[FETCHED] Supplier table data:", supplierTableData);
             await AsyncStorage.setItem(
               "supplierData",
               JSON.stringify(supplierTableData)
-            );
-            const storedSupplierTable =
-              await AsyncStorage.getItem("supplierData");
-            console.log(
-              "[STORED] Supplier table data in AsyncStorage:",
-              storedSupplierTable
             );
           } else {
             console.warn("Failed to fetch supplier table data");
