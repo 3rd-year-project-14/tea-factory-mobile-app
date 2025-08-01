@@ -1,5 +1,5 @@
 // Trip.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { BASE_URL } from "../../../../constants/ApiConfig";
@@ -14,53 +14,101 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 
-// ...existing code...
-
 export default function Trip() {
-  const navigation = useNavigation();
-  // Remove search and filtering for All Trips
   const [filteredSuppliers, setFilteredSuppliers] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [arrived, setArrived] = useState(false);
   const [loading, setLoading] = useState(true);
-  // ...existing code...
+  const [supplierToggle, setSupplierToggle] = useState("upcoming");
+  const [completedSummaries, setCompletedSummaries] = useState([]);
+  const [showCompletedDetails, setShowCompletedDetails] = useState(false);
+  const [collectedSummary, setCollectedSummary] = useState(null);
+  const [collectedSummaryLoading, setCollectedSummaryLoading] = useState(false);
+  const [bagDetailsModalVisible, setBagDetailsModalVisible] = useState(false);
+  const [bagDetails, setBagDetails] = useState([]);
+  const [bagDetailsLoading, setBagDetailsLoading] = useState(false);
+  const [bagDetailsError, setBagDetailsError] = useState(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchTodaySupply = async () => {
-      setLoading(true);
-      try {
-        const driverDataStr = await AsyncStorage.getItem("driverData");
-        let _driverId = null;
-        if (driverDataStr) {
-          const driverData = JSON.parse(driverDataStr);
-          _driverId = driverData.id || driverData.driverId;
-        }
-        if (_driverId) {
-          try {
-            const res = await axios.get(
-              `${BASE_URL}/api/tea-supply-today/${_driverId}`
-            );
-            // Expecting res.data.requests to be an array of suppliers/trips
-            setFilteredSuppliers(res.data.requests || []);
-          } catch (err) {
-            setFilteredSuppliers([]);
-            console.log("Error fetching today's supply:", err);
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+      const fetchTodaySupply = async () => {
+        setLoading(true);
+        try {
+          const driverDataStr = await AsyncStorage.getItem("driverData");
+          let _driverId = null;
+          if (driverDataStr) {
+            const driverData = JSON.parse(driverDataStr);
+            _driverId = driverData.id || driverData.driverId;
           }
-        } else {
-          setFilteredSuppliers([]);
+          if (_driverId) {
+            try {
+              const res = await axios.get(
+                `${BASE_URL}/api/tea-supply-today/${_driverId}`
+              );
+              let requests = res.data.requests || [];
+              if (isActive) {
+                // Sort only pending suppliers by pickupToRouteStartDistance (ascending)
+                const pendingSuppliers = requests
+                  .filter((s) => s.status === "pending")
+                  .sort(
+                    (a, b) =>
+                      (a.pickupToRouteStartDistance || 0) -
+                      (b.pickupToRouteStartDistance || 0)
+                  );
+                // Merge sorted pending with the rest (collected etc. keep their order)
+                const nonPendingSuppliers = requests.filter(
+                  (s) => s.status !== "pending"
+                );
+                const sortedRequests = [
+                  ...pendingSuppliers,
+                  ...nonPendingSuppliers,
+                ];
+                setFilteredSuppliers(sortedRequests);
+                // Auto-select nearest pending supplier
+                setSelectedSupplier(
+                  pendingSuppliers.length > 0 ? pendingSuppliers[0] : null
+                );
+                setArrived(false);
+                // Fetch completed trip summaries
+                const tripIdStr = await AsyncStorage.getItem("tripId");
+                const tripId = Number(tripIdStr);
+                if (tripId) {
+                  try {
+                    const summaryRes = await axios.get(
+                      `${BASE_URL}/api/trip-bags/summary/by-trip/${tripId}`
+                    );
+                    if (isActive) setCompletedSummaries(summaryRes.data || []);
+                  } catch (_err) {
+                    if (isActive) setCompletedSummaries([]);
+                  }
+                } else {
+                  if (isActive) setCompletedSummaries([]);
+                }
+              }
+            } catch (err) {
+              if (isActive) setFilteredSuppliers([]);
+              console.log("Error fetching today's supply:", err);
+            }
+          } else {
+            if (isActive) setFilteredSuppliers([]);
+          }
+        } catch (err) {
+          if (isActive) setFilteredSuppliers([]);
+          console.log("Error loading driver data:", err);
         }
-      } catch (err) {
-        setFilteredSuppliers([]);
-        console.log("Error loading driver data:", err);
-      }
-      setLoading(false);
-    };
-    fetchTodaySupply();
-  }, []);
+        if (isActive) setLoading(false);
+      };
+      fetchTodaySupply();
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f8f4", position: "relative" }}>
@@ -73,6 +121,7 @@ export default function Trip() {
             alignItems: "center",
           }}
         >
+          {/* If collected, show summary card. If pending, show normal card. */}
           <View style={styles.mapSection}>
             <Image
               source={require("../../../../assets/images/map.jpg")}
@@ -93,9 +142,34 @@ export default function Trip() {
                   color="#183d2b"
                   style={{ marginRight: 5 }}
                 />
-                <Text style={styles.supplierAddress}>
-                  Bags: {selectedSupplier.estimatedBagCount}
-                </Text>
+                {selectedSupplier.status === "collected" ? (
+                  collectedSummaryLoading ? (
+                    <View style={{ minHeight: 38, justifyContent: "center" }}>
+                      <Text style={{ color: "#888", fontSize: 16 }}>
+                        Loading summary...
+                      </Text>
+                    </View>
+                  ) : collectedSummary ? (
+                    <View style={{ minHeight: 38, justifyContent: "center" }}>
+                      <Text style={styles.supplierAddress}>
+                        {collectedSummary.totalBags} Bags -{" "}
+                        {collectedSummary.totalWeight} kg
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ minHeight: 38, justifyContent: "center" }}>
+                      <Text style={{ color: "#888", fontSize: 16 }}>
+                        No summary found.
+                      </Text>
+                    </View>
+                  )
+                ) : (
+                  <View style={{ minHeight: 38, justifyContent: "center" }}>
+                    <Text style={styles.supplierAddress}>
+                      Bags: {selectedSupplier.estimatedBagCount}
+                    </Text>
+                  </View>
+                )}
               </View>
               <TouchableOpacity
                 style={styles.callBtn}
@@ -111,95 +185,137 @@ export default function Trip() {
                 />
                 <Text style={styles.callBtnText}>Call</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.goBtn}
-                onPress={() => {
-                  if (!arrived) {
-                    Alert.alert(
-                      "Start Trip",
-                      "Do you want to start navigation to the pickup location?",
-                      [
-                        {
-                          text: "Cancel",
-                          style: "cancel",
-                        },
-                        {
-                          text: "Yes",
-                          onPress: () => {
-                            setArrived(true);
-                            let url = null;
-                            if (selectedSupplier.pickupLocation) {
-                              url = selectedSupplier.pickupLocation;
-                            }
-                            if (url) {
-                              Linking.openURL(url);
-                            } else {
-                              Alert.alert(
-                                "No pickup location available for this supplier."
-                              );
-                            }
+              {selectedSupplier.status !== "collected" ? (
+                <TouchableOpacity
+                  style={styles.goBtn}
+                  onPress={() => {
+                    if (!arrived) {
+                      Alert.alert(
+                        "Start Trip",
+                        "Do you want to start navigation to the pickup location?",
+                        [
+                          {
+                            text: "Cancel",
+                            style: "cancel",
                           },
-                        },
-                      ]
-                    );
-                  } else {
-                    Alert.alert(
-                      "Arrived",
-                      "Are you sure you have arrived at the pickup location?",
-                      [
-                        {
-                          text: "Cancel",
-                          style: "cancel",
-                        },
-                        {
-                          text: "Yes",
-                          onPress: () => {
-                            (async () => {
-                              try {
-                                // Get tripId from AsyncStorage
-                                const tripIdStr =
-                                  await AsyncStorage.getItem("tripId");
-                                const tripId = Number(tripIdStr);
-                                // Get supplyRequestId from selectedSupplier
-                                const supplyRequestId =
-                                  selectedSupplier.supplyRequestId ||
-                                  selectedSupplier.requestId;
-                                console.log(
-                                  "tripId:",
-                                  tripId,
-                                  "supplyRequestId:",
-                                  supplyRequestId
-                                );
-                                if (tripId && supplyRequestId) {
-                                  await axios.post(
-                                    `${BASE_URL}/api/trip-suppliers`,
-                                    {
-                                      tripId,
-                                      supplyRequestId,
-                                    }
-                                  );
-                                }
-                              } catch (_err) {
-                                Alert.alert(
-                                  "Error",
-                                  "Failed to update trip supplier."
-                                );
-                                return;
+                          {
+                            text: "Yes",
+                            onPress: () => {
+                              setArrived(true);
+                              let url = null;
+                              if (selectedSupplier.pickupLocation) {
+                                url = selectedSupplier.pickupLocation;
                               }
-                              // After successful API call, navigate to pickup
-                              router.push("/(role)/(driver)/(nontabs)/pickup");
-                            })();
+                              if (url) {
+                                Linking.openURL(url);
+                              } else {
+                                Alert.alert(
+                                  "No pickup location available for this supplier."
+                                );
+                              }
+                            },
                           },
-                        },
-                      ]
-                    );
-                  }
-                }}
-              >
-                <Text style={styles.goBtnText}>
-                  {arrived ? "Arrived" : "GO"}
-                </Text>
-              </TouchableOpacity>
+                        ]
+                      );
+                    } else {
+                      Alert.alert(
+                        "Arrived",
+                        "Are you sure you have arrived at the pickup location?",
+                        [
+                          {
+                            text: "Cancel",
+                            style: "cancel",
+                          },
+                          {
+                            text: "Yes",
+                            onPress: () => {
+                              (async () => {
+                                let supplyRequestId;
+                                try {
+                                  // Get tripId from AsyncStorage
+                                  const tripIdStr =
+                                    await AsyncStorage.getItem("tripId");
+                                  const tripId = Number(tripIdStr);
+                                  // Get supplyRequestId from selectedSupplier
+                                  supplyRequestId =
+                                    selectedSupplier.supplyRequestId ||
+                                    selectedSupplier.requestId;
+                                  if (tripId && supplyRequestId) {
+                                    await axios.post(
+                                      `${BASE_URL}/api/trip-suppliers`,
+                                      {
+                                        tripId,
+                                        supplyRequestId,
+                                      }
+                                    );
+                                  }
+                                } catch (_err) {
+                                  Alert.alert(
+                                    "Error",
+                                    "Failed to update trip supplier."
+                                  );
+                                  return;
+                                }
+                                // After successful API call, navigate to pickup and pass supplyRequestId, supplierName, supplierId
+                                router.push({
+                                  pathname: "/(role)/(driver)/(nontabs)/pickup",
+                                  params: {
+                                    supplyRequestId,
+                                    supplierName: selectedSupplier.supplierName,
+                                    supplierId: selectedSupplier.supplierId,
+                                  },
+                                });
+                              })();
+                            },
+                          },
+                        ]
+                      );
+                    }
+                  }}
+                >
+                  <Text style={styles.goBtnText}>
+                    {arrived ? "Arrived" : "GO"}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.goBtn}
+                  onPress={async () => {
+                    if (!collectedSummary) {
+                      Alert.alert("No summary found.");
+                      return;
+                    }
+                    setBagDetailsModalVisible(true);
+                    setBagDetails([]);
+                    setBagDetailsLoading(true);
+                    setBagDetailsError(null);
+                    try {
+                      const tripIdStr = await AsyncStorage.getItem("tripId");
+                      const tripId = Number(tripIdStr);
+                      const supplyRequestId =
+                        selectedSupplier.supplyRequestId ||
+                        selectedSupplier.requestId;
+                      if (tripId && supplyRequestId) {
+                        const res = await axios.get(
+                          `${BASE_URL}/api/trip-bags/by-supply-request/${supplyRequestId}/trip/${tripId}`
+                        );
+                        setBagDetails(res.data || []);
+                      } else {
+                        setBagDetails([]);
+                        setBagDetailsError(
+                          "Trip ID or Supply Request ID not found."
+                        );
+                      }
+                    } catch (_err) {
+                      setBagDetails([]);
+                      setBagDetailsError("Failed to fetch bag details.");
+                    }
+                    setBagDetailsLoading(false);
+                  }}
+                >
+                  <Text style={styles.goBtnText}>View</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -214,8 +330,24 @@ export default function Trip() {
           paddingTop: 18,
           paddingBottom: 12,
           alignItems: "center",
-          height: selectedSupplier ? "50%" : "75%",
-          maxHeight: selectedSupplier ? "50%" : "75%",
+          height:
+            filteredSuppliers.length > 0 &&
+            filteredSuppliers.every((s) => s.status !== "pending")
+              ? showCompletedDetails
+                ? "75%"
+                : "50%"
+              : selectedSupplier
+                ? "50%"
+                : "75%",
+          maxHeight:
+            filteredSuppliers.length > 0 &&
+            filteredSuppliers.every((s) => s.status !== "pending")
+              ? showCompletedDetails
+                ? "75%"
+                : "50%"
+              : selectedSupplier
+                ? "50%"
+                : "75%",
           width: "100%",
           alignSelf: "flex-end",
           elevation: 4,
@@ -257,17 +389,57 @@ export default function Trip() {
                 </Text>
               </View>
             </TouchableOpacity>
-            {/* Upcoming Trips label */}
-            <Text
+            {/* Toggle for Upcoming/Collected Suppliers */}
+            <View
               style={{
-                fontSize: 20,
-                fontWeight: "bold",
-                marginBottom: 12,
+                flexDirection: "row",
+                justifyContent: "center",
                 marginTop: 8,
+                marginBottom: 12,
               }}
             >
-              Upcoming Trips
-            </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor:
+                    supplierToggle === "upcoming" ? "#183d2b" : "#eaf2ea",
+                  paddingVertical: 8,
+                  paddingHorizontal: 24,
+                  borderRadius: 20,
+                  marginRight: 8,
+                }}
+                onPress={() => setSupplierToggle("upcoming")}
+              >
+                <Text
+                  style={{
+                    color: supplierToggle === "upcoming" ? "#fff" : "#183d2b",
+                    fontWeight: "bold",
+                    fontSize: 16,
+                  }}
+                >
+                  Upcoming Trips
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  backgroundColor:
+                    supplierToggle === "collected" ? "#183d2b" : "#eaf2ea",
+                  paddingVertical: 8,
+                  paddingHorizontal: 24,
+                  borderRadius: 20,
+                }}
+                onPress={() => setSupplierToggle("collected")}
+              >
+                <Text
+                  style={{
+                    color: supplierToggle === "collected" ? "#fff" : "#183d2b",
+                    fontWeight: "bold",
+                    fontSize: 16,
+                  }}
+                >
+                  Collected Trips
+                </Text>
+              </TouchableOpacity>
+            </View>
             <ScrollView
               style={{ width: "100%" }}
               contentContainerStyle={{ paddingBottom: 16 }}
@@ -291,25 +463,39 @@ export default function Trip() {
                     Loading suppliers...
                   </Text>
                 </View>
-              ) : filteredSuppliers.filter(
-                  (s) =>
-                    (s.requestId || s.supplierId) !==
-                    (selectedSupplier.requestId || selectedSupplier.supplierId)
-                ).length === 0 ? (
-                <Text
-                  style={{ color: "#888", fontSize: 16, textAlign: "center" }}
-                >
-                  No suppliers found.
-                </Text>
               ) : (
-                filteredSuppliers
-                  .filter(
+                // Filter suppliers based on toggle
+                (() => {
+                  // Exclude selected supplier from the list
+                  let suppliers = filteredSuppliers.filter(
                     (s) =>
                       (s.requestId || s.supplierId) !==
                       (selectedSupplier.requestId ||
                         selectedSupplier.supplierId)
-                  )
-                  .map((supplier) => (
+                  );
+                  if (supplierToggle === "collected") {
+                    // Show only collected suppliers (status === 'collected')
+                    suppliers = suppliers.filter(
+                      (s) => s.status === "collected"
+                    );
+                  } else {
+                    // Show only upcoming suppliers (status === 'pending')
+                    suppliers = suppliers.filter((s) => s.status === "pending");
+                  }
+                  if (suppliers.length === 0) {
+                    return (
+                      <Text
+                        style={{
+                          color: "#888",
+                          fontSize: 16,
+                          textAlign: "center",
+                        }}
+                      >
+                        No suppliers found.
+                      </Text>
+                    );
+                  }
+                  return suppliers.map((supplier) => (
                     <TouchableOpacity
                       key={supplier.requestId || supplier.supplierId}
                       style={{
@@ -320,9 +506,35 @@ export default function Trip() {
                         borderBottomColor: "#eaf2ea",
                         width: "100%",
                       }}
-                      onPress={() => {
-                        setSelectedSupplier(supplier);
-                        setArrived(false);
+                      onPress={async () => {
+                        // Force state change to always trigger API and logs
+                        setSelectedSupplier(null);
+                        setTimeout(async () => {
+                          setSelectedSupplier(supplier);
+                          setArrived(false);
+                          // If collected supplier, fetch summary
+                          if (supplier.status === "collected") {
+                            setCollectedSummaryLoading(true);
+                            setCollectedSummary(null);
+                            try {
+                              const supplyRequestId =
+                                supplier.supplyRequestId || supplier.requestId;
+                              if (supplyRequestId) {
+                                const res = await axios.get(
+                                  `${BASE_URL}/api/trip-bags/summary/by-supply-request/${supplyRequestId}`
+                                );
+                                setCollectedSummary(res.data || null);
+                              } else {
+                                setCollectedSummary(null);
+                              }
+                            } catch (_err) {
+                              setCollectedSummary(null);
+                            }
+                            setCollectedSummaryLoading(false);
+                          } else {
+                            setCollectedSummary(null);
+                          }
+                        }, 0);
                       }}
                     >
                       <Image
@@ -338,83 +550,341 @@ export default function Trip() {
                         </Text>
                       </View>
                     </TouchableOpacity>
-                  ))
+                  ));
+                })()
               )}
             </ScrollView>
           </>
         ) : (
           <>
-            <Text
-              style={{ fontSize: 20, fontWeight: "bold", marginBottom: 12 }}
-            >
-              All Trips
-            </Text>
-            <ScrollView
-              style={{ width: "100%", flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 16 }}
-            >
-              {loading ? (
-                <View
+            {/* If all trips are completed (no pending), show completed message and End Trip button */}
+            {filteredSuppliers.length > 0 &&
+            filteredSuppliers.every((s) => s.status !== "pending") ? (
+              <>
+                <Text
                   style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    width: "100%",
+                    fontSize: 20,
+                    fontWeight: "bold",
+                    marginBottom: 12,
+                    color: "#183d2b",
+                    textAlign: "center",
                   }}
                 >
-                  <Ionicons
-                    name="refresh"
-                    size={36}
-                    color="#183d2b"
-                    style={{}}
-                  />
-                  <Text style={{ fontSize: 18, color: "#888", marginTop: 8 }}>
-                    Loading suppliers...
-                  </Text>
-                </View>
-              ) : filteredSuppliers.length === 0 ? (
-                <Text
-                  style={{ color: "#888", fontSize: 16, textAlign: "center" }}
-                >
-                  No suppliers found.
+                  All Trips Completed
                 </Text>
-              ) : (
-                filteredSuppliers.map((supplier) => (
-                  <TouchableOpacity
-                    key={supplier.requestId || supplier.supplierId}
+                {showCompletedDetails ? (
+                  <View
                     style={{
-                      flexDirection: "row",
+                      position: "absolute",
+                      top: "12.5%",
+                      left: 0,
+                      right: 0,
+                      height: "75%",
+                      backgroundColor: "#fff",
+                      borderTopLeftRadius: 24,
+                      borderTopRightRadius: 24,
+                      paddingHorizontal: 24,
+                      paddingBottom: 12,
+                      zIndex: 100,
                       alignItems: "center",
-                      paddingVertical: 14,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#eaf2ea",
-                      width: "100%",
-                    }}
-                    onPress={() => {
-                      setSelectedSupplier(supplier);
-                      setArrived(false);
+                      justifyContent: "flex-start",
                     }}
                   >
-                    {/* If you have supplier image from API, use it here. Otherwise, use a placeholder. */}
-                    <Image
-                      source={require("../../../../assets/images/propic.jpg")}
-                      style={styles.supplierAvatar}
-                    />
-                    <View>
-                      <Text style={styles.listSupplierName}>
-                        {supplier.supplierName}
+                    <TouchableOpacity
+                      style={{
+                        alignSelf: "flex-end",
+                        marginBottom: 8,
+                        backgroundColor: "#eaf2ea",
+                        borderRadius: 16,
+                        paddingVertical: 4,
+                        paddingHorizontal: 18,
+                        elevation: 1,
+                      }}
+                      onPress={() => setShowCompletedDetails(false)}
+                    >
+                      <Text
+                        style={{
+                          color: "#183d2b",
+                          fontWeight: "bold",
+                          fontSize: 15,
+                        }}
+                      >
+                        Close
                       </Text>
-                      <Text style={styles.listSupplierBags}>
-                        {supplier.estimatedBagCount} Bags
+                    </TouchableOpacity>
+
+                    <ScrollView
+                      style={{ width: "100%" }}
+                      contentContainerStyle={{ paddingBottom: 48 }}
+                    >
+                      {completedSummaries.length === 0 ? (
+                        <Text
+                          style={{
+                            color: "#888",
+                            fontSize: 16,
+                            textAlign: "center",
+                          }}
+                        >
+                          No completed suppliers found.
+                        </Text>
+                      ) : (
+                        completedSummaries.map((summary) => {
+                          const supplier = filteredSuppliers.find(
+                            (s) =>
+                              (s.supplyRequestId || s.requestId) ===
+                              summary.supplyRequestId
+                          );
+                          return (
+                            <View
+                              key={summary.supplyRequestId}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingVertical: 14,
+                                borderBottomWidth: 1,
+                                borderBottomColor: "#eaf2ea",
+                                width: "100%",
+                              }}
+                            >
+                              <Image
+                                source={require("../../../../assets/images/propic.jpg")}
+                                style={styles.supplierAvatar}
+                              />
+                              <View>
+                                <Text style={styles.listSupplierName}>
+                                  {supplier
+                                    ? supplier.supplierName
+                                    : `Supplier ${summary.supplyRequestId}`}
+                                </Text>
+                                <Text style={styles.listSupplierBags}>
+                                  {summary.totalBags} Bags
+                                </Text>
+                                <Text style={styles.listSupplierBags}>
+                                  {summary.totalWeight} kg
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })
+                      )}
+                    </ScrollView>
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: "#eaf2ea",
+                        borderRadius: 18,
+                        paddingVertical: 12,
+                        paddingHorizontal: 24,
+                        alignSelf: "center",
+                        marginBottom: 10,
+                        elevation: 1,
+                      }}
+                      onPress={() => setShowCompletedDetails(true)}
+                    >
+                      <Text
+                        style={{
+                          color: "#183d2b",
+                          fontWeight: "bold",
+                          fontSize: 16,
+                        }}
+                      >
+                        Tap to view details
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 20,
+                        backgroundColor: "#183d2b",
+                        paddingVertical: 14,
+                        paddingHorizontal: 40,
+                        borderRadius: 24,
+                        alignSelf: "center",
+                        elevation: 2,
+                      }}
+                      onPress={async () => {
+                        let tripId;
+                        try {
+                          const tripIdStr =
+                            await AsyncStorage.getItem("tripId");
+                          tripId = Number(tripIdStr);
+                          if (tripId) {
+                            await axios.put(
+                              `${BASE_URL}/api/trips/${tripId}/complete`
+                            );
+                            // Clear tripId from AsyncStorage after trip completion
+                            await AsyncStorage.removeItem("tripId");
+                            // Wait a short delay to ensure backend updates
+                            setTimeout(() => {
+                              Alert.alert(
+                                "Trip Ended",
+                                "You have completed all trips!",
+                                [
+                                  {
+                                    text: "OK",
+                                    onPress: () => {
+                                      router.replace("/(role)/(driver)");
+                                    },
+                                  },
+                                ]
+                              );
+                            }, 500);
+                          } else {
+                            Alert.alert("Error", "Trip ID not found.");
+                          }
+                        } catch (_err) {
+                          Alert.alert("Error", "Failed to complete trip.");
+                        }
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontWeight: "bold",
+                          fontSize: 18,
+                        }}
+                      >
+                        END Trip
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <Text
+                  style={{ fontSize: 20, fontWeight: "bold", marginBottom: 12 }}
+                >
+                  All Trips
+                </Text>
+                <ScrollView
+                  style={{ width: "100%", flex: 1 }}
+                  contentContainerStyle={{ paddingBottom: 16 }}
+                >
+                  {loading ? (
+                    <View
+                      style={{
+                        flex: 1,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        width: "100%",
+                      }}
+                    >
+                      <Ionicons
+                        name="refresh"
+                        size={36}
+                        color="#183d2b"
+                        style={{}}
+                      />
+                      <Text
+                        style={{ fontSize: 18, color: "#888", marginTop: 8 }}
+                      >
+                        Loading suppliers...
                       </Text>
                     </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
+                  ) : filteredSuppliers.length === 0 ? (
+                    <Text
+                      style={{
+                        color: "#888",
+                        fontSize: 16,
+                        textAlign: "center",
+                      }}
+                    >
+                      No suppliers found.
+                    </Text>
+                  ) : (
+                    filteredSuppliers.map((supplier) => (
+                      <TouchableOpacity
+                        key={supplier.requestId || supplier.supplierId}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 14,
+                          borderBottomWidth: 1,
+                          borderBottomColor: "#eaf2ea",
+                          width: "100%",
+                        }}
+                        onPress={() => {
+                          setSelectedSupplier(supplier);
+                          setArrived(false);
+                        }}
+                      >
+                        {/* If you have supplier image from API, use it here. Otherwise, use a placeholder. */}
+                        <Image
+                          source={require("../../../../assets/images/propic.jpg")}
+                          style={styles.supplierAvatar}
+                        />
+                        <View>
+                          <Text style={styles.listSupplierName}>
+                            {supplier.supplierName}
+                          </Text>
+                          <Text style={styles.listSupplierBags}>
+                            {supplier.estimatedBagCount} Bags
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </ScrollView>
+              </>
+            )}
           </>
         )}
       </View>
+      {/* Bag Details Modal */}
+      {bagDetailsModalVisible && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setBagDetailsModalVisible(false)}
+          />
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Bag Details</Text>
+            {bagDetailsLoading ? (
+              <Text style={styles.modalLoadingText}>Loading...</Text>
+            ) : bagDetailsError ? (
+              <Text style={styles.modalErrorText}>{bagDetailsError}</Text>
+            ) : bagDetails.length === 0 ? (
+              <Text style={styles.modalLoadingText}>No bag details found.</Text>
+            ) : (
+              <>
+                <Text style={styles.totalBagsText}>
+                  Total Bags: {bagDetails.length}
+                </Text>
+                <ScrollView
+                  style={styles.modalScroll}
+                  contentContainerStyle={{ alignItems: "center" }}
+                >
+                  {bagDetails.map((bag, idx) => (
+                    <View
+                      key={bag.bagNumber || idx}
+                      style={styles.bagRowCompact}
+                    >
+                      <Text style={styles.bagLabelCompact}>
+                        {bag.bagNumber} - {bag.driverWeight} Kg
+                        {(() => {
+                          const tags = [];
+                          if (bag.wet) tags.push("Wet");
+                          if (bag.coarse) tags.push("Coarse");
+                          return tags.length > 0 ? ` (${tags.join(", ")})` : "";
+                        })()}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setBagDetailsModalVisible(false)}
+            >
+              <Text style={styles.modalCloseBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -425,6 +895,89 @@ const styles = StyleSheet.create({
     height: 260,
     position: "relative",
     marginBottom: 10,
+  },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    minWidth: "80%",
+    maxWidth: 400,
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+  },
+  modalTitle: {
+    color: "#183d2b",
+    fontWeight: "700",
+    fontSize: 20,
+    marginBottom: 14,
+    textAlign: "center",
+  },
+  modalLoadingText: {
+    color: "#888",
+    fontSize: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalErrorText: {
+    color: "red",
+    fontSize: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalScroll: {
+    maxHeight: 260,
+    width: "100%",
+    marginBottom: 12,
+  },
+  modalCloseBtn: {
+    backgroundColor: "#183d2b",
+    borderRadius: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 32,
+    alignSelf: "center",
+    marginTop: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+  },
+  totalBagsText: {
+    color: "#183d2b",
+    fontWeight: "600",
+    fontSize: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalCloseBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+    letterSpacing: 0.5,
+    textAlign: "center",
   },
   mapImage: {
     width: "100%",
@@ -446,6 +999,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
+  },
+  bagRowCompact: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eaf2ea",
+  },
+  bagLabelCompact: {
+    fontSize: 15,
+    color: "#183d2b",
+    fontWeight: "500",
+    letterSpacing: 0.2,
   },
   supplierCode: {
     color: "#183d2b",
