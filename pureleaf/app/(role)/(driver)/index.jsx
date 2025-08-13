@@ -12,6 +12,7 @@ import {
   Linking,
   TextInput,
   Pressable,
+  AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -91,6 +92,50 @@ const suppliers = [
 ];
 
 export default function SupplierHome() {
+  const [FACTORY_MAP_URL, setFactoryMapUrl] = useState("");
+  const [factoryArrived, setFactoryArrived] = useState(false);
+
+  // Load factoryArrived state and factoryMapUrl from AsyncStorage
+  useEffect(() => {
+    (async () => {
+      const val = await AsyncStorage.getItem("factoryArrived");
+      setFactoryArrived(val === "true");
+      // Load factoryMapUrl from driverData if available
+      const driverDataStr = await AsyncStorage.getItem("driverData");
+      if (driverDataStr) {
+        try {
+          const driverData = JSON.parse(driverDataStr);
+          if (driverData.factoryMapUrl) {
+            // If it's a lat,lng string, build the Google Maps URL
+            const coords = driverData.factoryMapUrl;
+            setFactoryMapUrl(
+              `https://www.google.com/maps/search/?api=1&query=${coords}`
+            );
+          }
+        } catch {}
+      }
+    })();
+  }, []);
+
+  // When app comes to foreground, check if factoryArrived should be updated
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState === "active") {
+        const val = await AsyncStorage.getItem("factoryArrived");
+        if (val === "false") {
+          setFactoryArrived(true);
+          await AsyncStorage.setItem("factoryArrived", "true");
+        }
+      }
+    };
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange
+    );
+    return () => {
+      subscription.remove();
+    };
+  }, []);
   const [userName, setUserName] = useState("");
   const [isAfterFour, setIsAfterFour] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -113,14 +158,15 @@ export default function SupplierHome() {
   const [isCheckedInToday, setIsCheckedInToday] = useState(null);
   const [todayTripId, setTodayTripId] = useState(null);
   const [todayTripStatus, setTodayTripStatus] = useState(null);
-  const [tripBagSummaryModalVisible, setTripBagSummaryModalVisible] = useState(false);
+  const [tripBagSummaryModalVisible, setTripBagSummaryModalVisible] =
+    useState(false);
   const [tripBagSummary, setTripBagSummary] = useState([]);
 
   // Check local time for 4:00 PM and update isAfterFour
   useEffect(() => {
     const checkTime = () => {
       const now = new Date();
-      if (now.getHours() >= 16) {
+      if (now.getHours() >= 1) {
         setIsAfterFour(true);
       } else {
         setIsAfterFour(false);
@@ -385,6 +431,9 @@ export default function SupplierHome() {
   const handleSelectSupplier = (supplier) => setSelectedSupplier(supplier);
   const handleBackToList = () => setSelectedSupplier(null);
 
+  console.log("todayTripStatus", todayTripStatus);
+        console.log("todayTripId", todayTripId);
+
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f8f4" }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
@@ -437,29 +486,89 @@ export default function SupplierHome() {
             <Text style={styles.checkInText}>Check In</Text>
           </TouchableOpacity>
         )}
-
-        {/* If trip exists and status is completed, show All Trips Completed below wallet */}
-        {todayTripId && todayTripStatus === "completed" && (
-          <View style={styles.checkedInCard}>
-            <Text style={styles.checkedInTitle}>All Trips Completed</Text>
-            <TouchableOpacity
-              onPress={async () => {
-                // Fetch trip bag summary for this trip
-                try {
-                  const res = await axios.get(
-                    `${BASE_URL}/api/trip-bags/summary/by-trip/${todayTripId}`
-                  );
-                  setTripBagSummary(res.data || []);
-                } catch {
-                  setTripBagSummary([]);
-                }
-                setTripBagSummaryModalVisible(true);
-              }}
-            >
-              <Text style={styles.supplierCountHint}>Tap to view details</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        
+        {/* If trip exists and status is collected , show All Trips Completed below wallet */}
+        {todayTripId &&
+          (todayTripStatus === "collected" ||
+            todayTripStatus === "arrived") && (
+            <View style={styles.checkedInCard}>
+              <Text style={styles.checkedInTitle}>All Trips Completed</Text>
+              <TouchableOpacity
+                onPress={async () => {
+                  // Fetch trip bag summary for this trip
+                  try {
+                    const res = await axios.get(
+                      `${BASE_URL}/api/trip-bags/summary/by-trip/${todayTripId}`
+                    );
+                    setTripBagSummary(res.data || []);
+                  } catch {
+                    setTripBagSummary([]);
+                  }
+                  setTripBagSummaryModalVisible(true);
+                }}
+              >
+                <Text style={styles.supplierCountHint}>
+                  Tap to view details
+                </Text>
+              </TouchableOpacity>
+              {/* Go to Factory / Arrived button */}
+              {todayTripStatus === "collected" && (
+                <>
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 18,
+                      backgroundColor: "#183d2b",
+                      paddingVertical: 14,
+                      paddingHorizontal: 40,
+                      borderRadius: 24,
+                      alignSelf: "center",
+                      elevation: 2,
+                    }}
+                    onPress={async () => {
+                      if (!factoryArrived) {
+                        // Open map to factory
+                        try {
+                          Linking.openURL(FACTORY_MAP_URL);
+                          await AsyncStorage.setItem("factoryArrived", "false");
+                        } catch (_err) {
+                          Alert.alert("Error", "Could not open map.");
+                        }
+                      } else {
+                        // Mark as arrived and update trip status
+                        try {
+                          if (todayTripId) {
+                            await axios.put(
+                              `${BASE_URL}/api/trips/${todayTripId}/status`,
+                              { status: "arrived" }
+                            );
+                          }
+                        } catch (_err) {
+                          Alert.alert(
+                            "Error",
+                            "Failed to update trip status to arrived."
+                          );
+                        }
+                        await AsyncStorage.setItem("factoryArrived", "true");
+                        setFactoryArrived(true);
+                        setTodayTripStatus("arrived");
+                        Alert.alert("Arrived at Factory");
+                      }
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontWeight: "bold",
+                        fontSize: 18,
+                      }}
+                    >
+                      {factoryArrived ? "Arrived" : "Go to Factory"}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
         {/* Trip Bag Summary Modal for All Trips Completed */}
         <Modal
           visible={tripBagSummaryModalVisible}

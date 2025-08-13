@@ -711,7 +711,8 @@ export default function Trip() {
                           tripId = Number(tripIdStr);
                           if (tripId) {
                             await axios.put(
-                              `${BASE_URL}/api/trips/${tripId}/complete`
+                              `${BASE_URL}/api/trips/${tripId}/status`,
+                              { status: "collected" }
                             );
                             // Clear tripId from AsyncStorage after trip completion
                             await AsyncStorage.removeItem("tripId");
