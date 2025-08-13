@@ -291,9 +291,9 @@ export default function SignupBasicForm() {
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "flex-start",
     paddingVertical: 40,
+    paddingBottom: 60, // Add extra space for keyboard
   },
   bg: {
     flex: 1,
@@ -307,8 +307,6 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
     zIndex: 2,
   },
   card: {
@@ -319,6 +317,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     alignItems: "center",
     elevation: 8,
+    alignSelf: "center", // Center card horizontally
   },
   logo: {
     width: 48,

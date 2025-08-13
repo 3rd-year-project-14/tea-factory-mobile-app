@@ -79,61 +79,72 @@ export default function LoginScreen() {
       const userId = data.userId || data.id;
 
       if (userId) {
-        // Fetch driver data and store in AsyncStorage (using axios and BASE_URL)
-        try {
-          const driverRes = await axios.get(
-            `${BASE_URL}/api/drivers/user/${userId}`
-          );
-          const driverData = driverRes.data;
-          await AsyncStorage.setItem("driverData", JSON.stringify(driverData));
-        } catch (err) {
-          if (err.response) {
-            console.warn(
-              "Failed to fetch driver data",
-              err.response.status,
-              err.response.data
-            );
-          } else {
-            console.error("Error fetching driver data:", err);
-          }
-        }
         // Store user data from login response
         await AsyncStorage.setItem("userData", JSON.stringify(data));
 
-        // Fetch supplier request data and store in AsyncStorage
-        try {
-          const supplierReqRes = await fetch(
-            `${BASE_URL}/api/supplier-requests?userId=${userId}`
-          );
-          if (supplierReqRes.ok) {
-            const supplierRequestData = await supplierReqRes.json();
-            await AsyncStorage.setItem(
-              "supplierRequest",
-              JSON.stringify(supplierRequestData)
+        if (userRole === "driver") {
+          // Fetch driver data and store in AsyncStorage
+          try {
+            const driverRes = await axios.get(
+              `${BASE_URL}/api/drivers/user/${userId}`
             );
-          } else {
-            console.warn("Failed to fetch supplier request data");
+            const driverData = driverRes.data;
+            console.log("Driver data:", driverData);
+            await AsyncStorage.setItem(
+              "driverData",
+              JSON.stringify(driverData)
+            );
+          } catch (err) {
+            if (err.response) {
+              console.warn(
+                "Failed to fetch driver data",
+                err.response.status,
+                err.response.data
+              );
+            } else {
+              console.error("Error fetching driver data:", err);
+            }
           }
-        } catch (err) {
-          console.error("Error fetching supplier request data:", err);
         }
 
-        // Fetch supplier table details and store in AsyncStorage
-        try {
-          const supplierTableRes = await fetch(
-            `${BASE_URL}/api/suppliers/by-user?userId=${userId}`
-          );
-          if (supplierTableRes.ok) {
-            const supplierTableData = await supplierTableRes.json();
-            await AsyncStorage.setItem(
-              "supplierData",
-              JSON.stringify(supplierTableData)
+        if (userRole === "pending_user") {
+          // Fetch supplier request data and store in AsyncStorage
+          try {
+            const supplierReqRes = await fetch(
+              `${BASE_URL}/api/supplier-requests?userId=${userId}`
             );
-          } else {
-            console.warn("Failed to fetch supplier table data");
+            if (supplierReqRes.ok) {
+              const supplierRequestData = await supplierReqRes.json();
+              await AsyncStorage.setItem(
+                "supplierRequest",
+                JSON.stringify(supplierRequestData)
+              );
+            } else {
+              console.warn("Failed to fetch supplier request data");
+            }
+          } catch (err) {
+            console.error("Error fetching supplier request data:", err);
           }
-        } catch (err) {
-          console.error("Error fetching supplier table data:", err);
+        }
+
+        if (userRole === "supplier") {
+          // Fetch supplier table details and store in AsyncStorage
+          try {
+            const supplierTableRes = await fetch(
+              `${BASE_URL}/api/suppliers/by-user?userId=${userId}`
+            );
+            if (supplierTableRes.ok) {
+              const supplierTableData = await supplierTableRes.json();
+              await AsyncStorage.setItem(
+                "supplierData",
+                JSON.stringify(supplierTableData)
+              );
+            } else {
+              console.warn("Failed to fetch supplier table data");
+            }
+          } catch (err) {
+            console.error("Error fetching supplier table data:", err);
+          }
         }
       }
 
