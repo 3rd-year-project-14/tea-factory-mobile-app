@@ -1,3 +1,3 @@
 // pureleaf/constants/ApiConfig.ts
-
-export const BASE_URL = "http://192.168.8.159:8080";
+import Constants from "expo-constants";
+export const BASE_URL = Constants.expoConfig?.extra?.BASE_URL;

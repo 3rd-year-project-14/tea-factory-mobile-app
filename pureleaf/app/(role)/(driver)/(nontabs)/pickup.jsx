@@ -265,7 +265,7 @@ export default function Pickup() {
             </View>
           ))}
           {/* Fill empty rows for consistent look */}
-          {[...Array(5 - bags.length)].map((_, i) => (
+          {[...Array(Math.max(0, 5 - bags.length))].map((_, i) => (
             <View style={styles.tableRow} key={bags.length + i}>
               <Text style={styles.tableCell}></Text>
               <Text style={styles.tableCell}></Text>
