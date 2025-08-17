@@ -495,62 +495,78 @@ export default function Trip() {
                       </Text>
                     );
                   }
-                  return suppliers.map((supplier) => (
-                    <TouchableOpacity
-                      key={supplier.requestId || supplier.supplierId}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 14,
-                        borderBottomWidth: 1,
-                        borderBottomColor: "#eaf2ea",
-                        width: "100%",
-                      }}
-                      onPress={async () => {
-                        // Force state change to always trigger API and logs
-                        setSelectedSupplier(null);
-                        setTimeout(async () => {
-                          setSelectedSupplier(supplier);
-                          setArrived(false);
-                          // If collected supplier, fetch summary
-                          if (supplier.status === "collected") {
-                            setCollectedSummaryLoading(true);
-                            setCollectedSummary(null);
-                            try {
-                              const supplyRequestId =
-                                supplier.supplyRequestId || supplier.requestId;
-                              if (supplyRequestId) {
-                                const res = await axios.get(
-                                  `${BASE_URL}/api/trip-bags/summary/by-supply-request/${supplyRequestId}`
-                                );
-                                setCollectedSummary(res.data || null);
-                              } else {
+                  return suppliers.map((supplier) => {
+                    // Find summary for this supplier
+                    let actualBags = null;
+                    if (supplier.status === "collected") {
+                      const summary = completedSummaries.find(
+                        (s) =>
+                          (s.supplyRequestId || s.requestId) ===
+                          (supplier.supplyRequestId || supplier.requestId)
+                      );
+                      if (summary) actualBags = summary.totalBags;
+                    }
+                    return (
+                      <TouchableOpacity
+                        key={supplier.requestId || supplier.supplierId}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 14,
+                          borderBottomWidth: 1,
+                          borderBottomColor: "#eaf2ea",
+                          width: "100%",
+                        }}
+                        onPress={async () => {
+                          // Force state change to always trigger API and logs
+                          setSelectedSupplier(null);
+                          setTimeout(async () => {
+                            setSelectedSupplier(supplier);
+                            setArrived(false);
+                            // If collected supplier, fetch summary
+                            if (supplier.status === "collected") {
+                              setCollectedSummaryLoading(true);
+                              setCollectedSummary(null);
+                              try {
+                                const supplyRequestId =
+                                  supplier.supplyRequestId ||
+                                  supplier.requestId;
+                                if (supplyRequestId) {
+                                  const res = await axios.get(
+                                    `${BASE_URL}/api/trip-bags/summary/by-supply-request/${supplyRequestId}`
+                                  );
+                                  setCollectedSummary(res.data || null);
+                                } else {
+                                  setCollectedSummary(null);
+                                }
+                              } catch (_err) {
                                 setCollectedSummary(null);
                               }
-                            } catch (_err) {
+                              setCollectedSummaryLoading(false);
+                            } else {
                               setCollectedSummary(null);
                             }
-                            setCollectedSummaryLoading(false);
-                          } else {
-                            setCollectedSummary(null);
-                          }
-                        }, 0);
-                      }}
-                    >
-                      <Image
-                        source={require("../../../../assets/images/propic.jpg")}
-                        style={styles.supplierAvatar}
-                      />
-                      <View>
-                        <Text style={styles.listSupplierName}>
-                          {supplier.supplierName}
-                        </Text>
-                        <Text style={styles.listSupplierBags}>
-                          {supplier.estimatedBagCount} Bags
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ));
+                          }, 0);
+                        }}
+                      >
+                        <Image
+                          source={require("../../../../assets/images/propic.jpg")}
+                          style={styles.supplierAvatar}
+                        />
+                        <View>
+                          <Text style={styles.listSupplierName}>
+                            {supplier.supplierName}
+                          </Text>
+                          <Text style={styles.listSupplierBags}>
+                            {supplier.status === "collected" &&
+                            actualBags !== null
+                              ? `${actualBags} Bags`
+                              : `${supplier.estimatedBagCount} Bags`}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  });
                 })()
               )}
             </ScrollView>
