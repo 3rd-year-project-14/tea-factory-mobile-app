@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import axios from "axios";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -166,22 +167,22 @@ export default function PendingSupplyOnboarding() {
           setLoading(false);
           return;
         }
-        const response = await fetch(
-          `${BASE_URL}/api/supplier-requests?userId=${storedUserId}`
+        const response = await axios.get(
+          `${BASE_URL}/api/supplier-requests/by-user/${storedUserId}`
         );
-        const data = await response.json();
+        const data = response.data;
         if (!data || (Array.isArray(data) && data.length === 0)) {
           setStatus(null);
         } else {
-          const request = Array.isArray(data) ? data[0] : data;
-          if (request.status === "rejected") {
+          
+          if (data.status === "rejected") {
             setStatus("rejected");
-            setRejectReason(request.rejectReason || "No reason provided.");
+            setRejectReason(data.rejectReason || "No reason provided.");
           } else {
             setStatus("pending");
           }
         }
-      } catch (err) {
+      } catch (_error) {
         setStatus(null);
       }
       setLoading(false);
@@ -207,7 +208,6 @@ export default function PendingSupplyOnboarding() {
       const supplierRequestData = {
         factoryId: selectedFactory?.id ? Number(selectedFactory.id) : null,
         userId: supplierUserId,
-        status: "pending",
         landSize: landDetails.land_size ? Number(landDetails.land_size) : null,
         landLocation: landDetails.land_location,
         pickupLocation: landDetails.pickup_location,
@@ -220,17 +220,20 @@ export default function PendingSupplyOnboarding() {
       if (nicImage) {
         formData.append("nicImage", {
           uri: nicImage.uri,
-          name: nicImage.fileName || "nic.jpg",
+          name: nicImage.fileName,
           type: "image/jpeg",
         });
       }
-      // Send to backend
-      const response = await fetch(`${BASE_URL}/api/supplier-requests/`, {
-        method: "POST",
-        body: formData,
-      });
-      const result = await response.json();
-      // Show pending UI after successful request
+      // Send to backend using axios
+      const response = await axios.post(
+        `${BASE_URL}/api/supplier-requests`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
       setRequestStatus("pending");
     } catch (error) {
       Toast.show({
@@ -252,8 +255,8 @@ export default function PendingSupplyOnboarding() {
   React.useEffect(() => {
     const fetchFactories = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/factories`);
-        const data = await response.json();
+        const response = await axios.get(`${BASE_URL}/api/factories`);
+        const data = response.data;
         // Preserve full factory object and add hardcoded image
         const mapped = data.map((f) => ({
           ...f,
