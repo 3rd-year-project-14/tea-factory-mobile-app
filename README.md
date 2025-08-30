@@ -1,50 +1,111 @@
-# Welcome to your Expo app 👋
+# PureLeaf - Tea Factory Mobile App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A mobile application for the PureLeaf Tea Factory Management System, built with React Native and Expo. This app empowers suppliers, drivers, and estate managers to interact with the factory system on the go, providing real-time updates, supply chain tracking, and operational tools.
 
-## Get started
+---
 
-1. Install dependencies
+## 📱 Features
 
-   ```bash
-   npm install
-   ```
+- Role-based access for suppliers, drivers, and estate managers  
+- Real-time supply chain and shipment tracking  
+- Notifications and alerts for critical events  
+- Mobile-friendly dashboards and reporting  
+- Seamless integration with backend APIs  
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 🛠️ Technology Stack
 
-In the output, you'll find options to open the app in a
+- React Native  
+- Expo  
+- JavaScript / TypeScript  
+- Axios (for API requests)  
+- React Navigation  
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 📦 Project Structure
+```
+tea-factory-mobile-app/
+├── pureleaf/
+   ├── app/             # Main application source code
+   ├── assets/          # Images, icons, fonts, and other static resources
+   ├── components/      # Reusable React Native UI components
+   ├── constants/       # App-wide constants (e.g., colors, strings, config)
+   ├── hooks/
+   ├── scripts/
+   ├── .env.example     # Example environment variable file for configuration
+   ├── .gitignore
+   ├── app.config.js
+   ├── app.json  
+   ├── eslint.config.js
+   ├── firebase.js 
+   ├── package-lock.json
+   ├── package.json
+   ├── tsconfig.json
+├── README.md
 
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## ⚡ Getting Started
 
-To learn more about developing your project with Expo, look at the following resources:
+### Clone the repository
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+git clone https://github.com/3rd-year-project-14/tea-factory-mobile-app.git
+cd tea-factory-mobile-app
+cd pureleaf
+```
 
-## Join the community
+### Install dependencies
 
-Join our community of developers creating universal apps.
+```
+npm install
+```
+### Create .env file in the pureleaf folder
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Inside .env update your base url
+```
+BASE_URL = your_base_url
+```
+
+
+### Start the Expo development server
+
+```
+npx expo start
+```
+
+### Run the app
+
+- Use the Expo Go app on your mobile device  
+- Open in an Android/iOS emulator  
+- Or open in your web browser  
+
+---
+
+## 🔧 Configuration
+
+- To use environment variables (e.g., API URLs), create a `.env` file in the root directory.  
+- Update API endpoints and keys as needed for your backend integration.
+
+---
+
+## 🤝 Contributing
+
+- Fork the repository and create a feature branch.  
+- Follow code style and best practices.  
+- Write clear commit messages and update documentation as needed.  
+- Submit pull requests for review.
+
+---
+
+## 📢 Notes
+
+- For backend/API setup, refer to the [PureLeaf Backend Repository](https://github.com/3rd-year-project-14/tea-factory-backend).  
+- For web frontend features, see the [PureLeaf Frontend Web Repository](https://github.com/3rd-year-project-14/tea-factory-frontend-web).  
+
+© 2025 3rd-year-project-14 Organization. All rights reserved.
+
