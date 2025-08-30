@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BASE_URL } from "../../../../constants/ApiConfig";
+import {
+  getNotAssignedBagNumbers,
+  batchAddTripBags,
+} from "../../../../services/driverPickupService";
 import {
   View,
   Text,
@@ -37,10 +39,7 @@ export default function Pickup() {
             const driverData = JSON.parse(driverDataStr);
             const routeId = driverData.routeId;
             if (routeId) {
-              const res = await fetch(
-                `${BASE_URL}/api/bags/route/${routeId}/not-assigned-bag-numbers`
-              );
-              const data = await res.json();
+              const data = await getNotAssignedBagNumbers(routeId);
               if (isActive) setBagNumbers(Array.isArray(data) ? data : []);
             }
           }
@@ -115,9 +114,7 @@ export default function Pickup() {
         return bagObj;
       });
 
-      await axios.post(`${BASE_URL}/api/trip-bags/batch`, bagsPayload, {
-        headers: { "Content-Type": "application/json" },
-      });
+      await batchAddTripBags(bagsPayload);
 
       setBags([]); // Clear the bags table after sending
       router.push("/(role)/(driver)/(nontabs)/trip");

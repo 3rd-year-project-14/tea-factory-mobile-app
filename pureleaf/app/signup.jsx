@@ -15,8 +15,9 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
-import { auth } from "../firebase"; // adjust path if firebase.js is elsewhere
-import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
+import { auth } from "../firebase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { signup as backendSignup } from "../services/authService";
 import { Feather } from "@expo/vector-icons";
 
 export default function SignupBasicForm() {
@@ -90,32 +91,30 @@ export default function SignupBasicForm() {
       const user = userCred.user;
       const token = await getIdToken(user);
 
-      const response = await fetch(`${BASE_URL}/api/auth/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          name: form.fullName,
-          nic: form.nic,
-          contactNo: form.phone,
-          email: form.email,
-          address: form.address,
-        }),
+      // Store token for axios interceptor
+      await AsyncStorage.setItem("firebaseToken", token);
+
+      // Use authService for signup
+      const response = await backendSignup({
+        token,
+        name: form.fullName,
+        nic: form.nic,
+        contactNo: form.phone,
+        email: form.email,
+        address: form.address,
       });
 
-      const result = await response.text();
-
-      if (response.ok) {
+      if (response.status === 200 || response.status === 201) {
         setMessage({ type: "success", text: "Signup successful!" });
         setTimeout(() => router.replace("/login"), 1500);
       } else {
-        setMessage({ type: "error", text: result });
+        setMessage({ type: "error", text: response.data || "Signup failed" });
       }
     } catch (error) {
       console.error("Signup error:", error);
       setMessage({
         type: "error",
-        text: error.message || "Something went wrong",
+        text: error.response?.data || error.message || "Something went wrong",
       });
     } finally {
       setLoading(false);

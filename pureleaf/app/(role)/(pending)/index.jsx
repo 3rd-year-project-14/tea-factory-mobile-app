@@ -1,4 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
+import {
+  getPendingSupplierRequestStatusByUser,
+  submitPendingSupplierRequest,
+  getFactories,
+} from "../../../services/pendingSupplierService";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -18,9 +23,7 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
-import MapView, { Marker, PROVIDER_GOOGLE, Polygon } from "react-native-maps";
-import { BASE_URL } from "../../../constants/ApiConfig";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 // ----- FACTORIES DATA (FETCHED FROM BACKEND) -----
 const factoryImages = {
@@ -166,22 +169,20 @@ export default function PendingSupplyOnboarding() {
           setLoading(false);
           return;
         }
-        const response = await fetch(
-          `${BASE_URL}/api/supplier-requests?userId=${storedUserId}`
-        );
-        const data = await response.json();
+        const response =
+          await getPendingSupplierRequestStatusByUser(storedUserId);
+        const data = response.data;
         if (!data || (Array.isArray(data) && data.length === 0)) {
           setStatus(null);
         } else {
-          const request = Array.isArray(data) ? data[0] : data;
-          if (request.status === "rejected") {
+          if (data.status === "rejected") {
             setStatus("rejected");
-            setRejectReason(request.rejectReason || "No reason provided.");
+            setRejectReason(data.rejectReason || "No reason provided.");
           } else {
             setStatus("pending");
           }
         }
-      } catch (err) {
+      } catch (_error) {
         setStatus(null);
       }
       setLoading(false);
@@ -190,7 +191,6 @@ export default function PendingSupplyOnboarding() {
   }, []);
   // Add missing handler for NIC submission
   const [requestStatus, setRequestStatus] = useState(null);
-  const [userId, setUserId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const handleSubmitSupplierRequest = async () => {
     setSubmitting(true);
@@ -207,7 +207,6 @@ export default function PendingSupplyOnboarding() {
       const supplierRequestData = {
         factoryId: selectedFactory?.id ? Number(selectedFactory.id) : null,
         userId: supplierUserId,
-        status: "pending",
         landSize: landDetails.land_size ? Number(landDetails.land_size) : null,
         landLocation: landDetails.land_location,
         pickupLocation: landDetails.pickup_location,
@@ -220,19 +219,14 @@ export default function PendingSupplyOnboarding() {
       if (nicImage) {
         formData.append("nicImage", {
           uri: nicImage.uri,
-          name: nicImage.fileName || "nic.jpg",
+          name: nicImage.fileName,
           type: "image/jpeg",
         });
       }
-      // Send to backend
-      const response = await fetch(`${BASE_URL}/api/supplier-requests/`, {
-        method: "POST",
-        body: formData,
-      });
-      const result = await response.json();
-      // Show pending UI after successful request
+      // Send to backend using service
+      await submitPendingSupplierRequest(formData);
       setRequestStatus("pending");
-    } catch (error) {
+    } catch (_e) {
       Toast.show({
         type: "error",
         text1: "Failed to submit request. Try Again",
@@ -252,8 +246,8 @@ export default function PendingSupplyOnboarding() {
   React.useEffect(() => {
     const fetchFactories = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/factories`);
-        const data = await response.json();
+        const response = await getFactories();
+        const data = response.data;
         // Preserve full factory object and add hardcoded image
         const mapped = data.map((f) => ({
           ...f,

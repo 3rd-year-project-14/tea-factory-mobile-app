@@ -1,8 +1,14 @@
 // Trip.jsx
 import React, { useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
-import { BASE_URL } from "../../../../constants/ApiConfig";
+import {
+  getTodayTeaSupplyRequests,
+  getTripBagSummaryByTrip,
+  getTripBagSummaryBySupplyRequest,
+  getBagDetailsBySupplyRequestAndTrip,
+  addTripSupplier,
+  updateTripStatus,
+} from "../../../../services/driverTripService";
 import {
   View,
   Text,
@@ -47,10 +53,8 @@ export default function Trip() {
           }
           if (_driverId) {
             try {
-              const res = await axios.get(
-                `${BASE_URL}/api/tea-supply-today/${_driverId}`
-              );
-              let requests = res.data.requests || [];
+              const res = await getTodayTeaSupplyRequests(_driverId);
+              let requests = res.requests || [];
               if (isActive) {
                 // Sort only pending suppliers by pickupToRouteStartDistance (ascending)
                 const pendingSuppliers = requests
@@ -79,10 +83,8 @@ export default function Trip() {
                 const tripId = Number(tripIdStr);
                 if (tripId) {
                   try {
-                    const summaryRes = await axios.get(
-                      `${BASE_URL}/api/trip-bags/summary/by-trip/${tripId}`
-                    );
-                    if (isActive) setCompletedSummaries(summaryRes.data || []);
+                    const summaryRes = await getTripBagSummaryByTrip(tripId);
+                    if (isActive) setCompletedSummaries(summaryRes || []);
                   } catch (_err) {
                     if (isActive) setCompletedSummaries([]);
                   }
@@ -241,12 +243,9 @@ export default function Trip() {
                                     selectedSupplier.supplyRequestId ||
                                     selectedSupplier.requestId;
                                   if (tripId && supplyRequestId) {
-                                    await axios.post(
-                                      `${BASE_URL}/api/trip-suppliers`,
-                                      {
-                                        tripId,
-                                        supplyRequestId,
-                                      }
+                                    await addTripSupplier(
+                                      tripId,
+                                      supplyRequestId
                                     );
                                   }
                                 } catch (_err) {
@@ -296,10 +295,11 @@ export default function Trip() {
                         selectedSupplier.supplyRequestId ||
                         selectedSupplier.requestId;
                       if (tripId && supplyRequestId) {
-                        const res = await axios.get(
-                          `${BASE_URL}/api/trip-bags/by-supply-request/${supplyRequestId}/trip/${tripId}`
+                        const res = await getBagDetailsBySupplyRequestAndTrip(
+                          supplyRequestId,
+                          tripId
                         );
-                        setBagDetails(res.data || []);
+                        setBagDetails(res || []);
                       } else {
                         setBagDetails([]);
                         setBagDetailsError(
@@ -532,10 +532,11 @@ export default function Trip() {
                                   supplier.supplyRequestId ||
                                   supplier.requestId;
                                 if (supplyRequestId) {
-                                  const res = await axios.get(
-                                    `${BASE_URL}/api/trip-bags/summary/by-supply-request/${supplyRequestId}`
-                                  );
-                                  setCollectedSummary(res.data || null);
+                                  const res =
+                                    await getTripBagSummaryBySupplyRequest(
+                                      supplyRequestId
+                                    );
+                                  setCollectedSummary(res || null);
                                 } else {
                                   setCollectedSummary(null);
                                 }
@@ -726,10 +727,7 @@ export default function Trip() {
                             await AsyncStorage.getItem("tripId");
                           tripId = Number(tripIdStr);
                           if (tripId) {
-                            await axios.put(
-                              `${BASE_URL}/api/trips/${tripId}/status`,
-                              { status: "collected" }
-                            );
+                            await updateTripStatus(tripId, "collected");
                             // Clear tripId from AsyncStorage after trip completion
                             await AsyncStorage.removeItem("tripId");
                             // Wait a short delay to ensure backend updates

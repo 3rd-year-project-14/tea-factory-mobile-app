@@ -14,6 +14,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { login as backendLogin } from "../services/authService";
 import axios from "axios";
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -62,19 +63,12 @@ export default function LoginScreen() {
       // Get Firebase ID token
       const token = await user.getIdToken();
 
-      // Send token to backend
-      const response = await fetch(`${BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error("Login failed: " + errorText);
-      }
+      // Store token for axios interceptor
+      await AsyncStorage.setItem("firebaseToken", token);
 
-      // Get user info from backend
-      const data = await response.json();
+      // Send token to backend using authService
+      const response = await backendLogin(token);
+      const data = response.data;
       const userRole = data.role?.toLowerCase();
       const userId = data.userId || data.id;
 
