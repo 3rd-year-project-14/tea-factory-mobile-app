@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import axios from "axios";
+import {
+  getPendingSupplierRequestStatusByUser,
+  submitPendingSupplierRequest,
+  getFactories,
+} from "../../../services/pendingSupplierService";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -19,9 +23,7 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
-import MapView, { Marker, PROVIDER_GOOGLE, Polygon } from "react-native-maps";
-import { BASE_URL } from "../../../constants/ApiConfig";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 // ----- FACTORIES DATA (FETCHED FROM BACKEND) -----
 const factoryImages = {
@@ -167,14 +169,12 @@ export default function PendingSupplyOnboarding() {
           setLoading(false);
           return;
         }
-        const response = await axios.get(
-          `${BASE_URL}/api/supplier-requests/by-user/${storedUserId}`
-        );
+        const response =
+          await getPendingSupplierRequestStatusByUser(storedUserId);
         const data = response.data;
         if (!data || (Array.isArray(data) && data.length === 0)) {
           setStatus(null);
         } else {
-          
           if (data.status === "rejected") {
             setStatus("rejected");
             setRejectReason(data.rejectReason || "No reason provided.");
@@ -191,7 +191,6 @@ export default function PendingSupplyOnboarding() {
   }, []);
   // Add missing handler for NIC submission
   const [requestStatus, setRequestStatus] = useState(null);
-  const [userId, setUserId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const handleSubmitSupplierRequest = async () => {
     setSubmitting(true);
@@ -224,18 +223,10 @@ export default function PendingSupplyOnboarding() {
           type: "image/jpeg",
         });
       }
-      // Send to backend using axios
-      const response = await axios.post(
-        `${BASE_URL}/api/supplier-requests`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      // Send to backend using service
+      await submitPendingSupplierRequest(formData);
       setRequestStatus("pending");
-    } catch (error) {
+    } catch (_e) {
       Toast.show({
         type: "error",
         text1: "Failed to submit request. Try Again",
@@ -255,7 +246,7 @@ export default function PendingSupplyOnboarding() {
   React.useEffect(() => {
     const fetchFactories = async () => {
       try {
-        const response = await axios.get(`${BASE_URL}/api/factories`);
+        const response = await getFactories();
         const data = response.data;
         // Preserve full factory object and add hardcoded image
         const mapped = data.map((f) => ({

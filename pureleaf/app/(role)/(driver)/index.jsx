@@ -15,8 +15,16 @@ import {
   AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
-import { BASE_URL } from "../../../constants/ApiConfig";
+import {
+  getTodayTrip,
+  getTodayDriverAvailability,
+  createDriverAvailability,
+  updateDriverAvailability,
+  getTodayTeaSupplyRequests,
+  getTripBagSummaryByTrip,
+  createTrip,
+  updateTripStatus,
+} from "../../../services/driverService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -199,18 +207,16 @@ export default function SupplierHome() {
           // Check today's trip
           if (_driverId) {
             try {
-              const todayTripRes = await axios.get(
-                `${BASE_URL}/api/trips/today/${_driverId}`
-              );
-              if (todayTripRes.data && todayTripRes.data.tripId) {
-                setTodayTripId(todayTripRes.data.tripId);
-                setTodayTripStatus(todayTripRes.data.status);
+              const todayTripRes = await getTodayTrip(_driverId);
+              if (todayTripRes && todayTripRes.tripId) {
+                setTodayTripId(todayTripRes.tripId);
+                setTodayTripStatus(todayTripRes.status);
                 await AsyncStorage.setItem(
                   "tripId",
-                  todayTripRes.data.tripId.toString()
+                  todayTripRes.tripId.toString()
                 );
                 // Only go to trip if status is pending
-                if (todayTripRes.data.status === "pending") {
+                if (todayTripRes.status === "pending") {
                   router.push("/(role)/(driver)/(nontabs)/trip");
                 }
               } else {
@@ -225,25 +231,23 @@ export default function SupplierHome() {
           // Check today's driver-availability row
           if (_driverId) {
             try {
-              const res = await axios.get(
-                `${BASE_URL}/api/driver-availability/today/${_driverId}`
-              );
-              if (!res.data || Object.keys(res.data).length === 0) {
+              const res = await getTodayDriverAvailability(_driverId);
+              if (!res || Object.keys(res).length === 0) {
                 // No row for today: show check-in button
                 setIsCheckedInToday(false);
                 setPageState("main");
                 setDriverAvailabilityId(null);
-              } else if (res.data.isAvailable) {
+              } else if (res.isAvailable) {
                 // Checked in: show checked-in card
                 setIsCheckedInToday(true);
                 setPageState("checkedIn");
-                setDriverAvailabilityId(res.data.id);
+                setDriverAvailabilityId(res.id);
               } else {
                 // Not collecting: show not-collecting card with reason
                 setIsCheckedInToday(false);
-                setNotCollectingReason(res.data.reason || "");
+                setNotCollectingReason(res.reason || "");
                 setPageState("notCollectingSet");
-                setDriverAvailabilityId(res.data.id);
+                setDriverAvailabilityId(res.id);
               }
             } catch {
               setIsCheckedInToday(false);
@@ -268,10 +272,8 @@ export default function SupplierHome() {
     const fetchTodaySuppliers = async () => {
       if (isCheckedInToday === true && driverId) {
         try {
-          const res = await axios.get(
-            `${BASE_URL}/api/tea-supply-today/${driverId}`
-          );
-          setTodayRequests(res.data.requests || []);
+          const res = await getTodayTeaSupplyRequests(driverId);
+          setTodayRequests(res.requests || []);
         } catch (_error) {
           setTodayRequests([]);
         }
@@ -295,18 +297,13 @@ export default function SupplierHome() {
       const _driverId = driverId;
       if (_driverId) {
         // POST to create availability
-        const res = await axios.post(`${BASE_URL}/api/driver-availability`, {
-          driverId: _driverId,
-          isAvailable: true,
-        });
+        const res = await createDriverAvailability(_driverId, true);
         // Try to get the id from response, otherwise fetch today's row
-        let newId = res.data && res.data.id;
+        let newId = res && res.id;
         if (!newId) {
           // Fetch today's row to get id
-          const getRes = await axios.get(
-            `${BASE_URL}/api/driver-availability/today/${_driverId}`
-          );
-          newId = getRes.data && getRes.data.id;
+          const getRes = await getTodayDriverAvailability(_driverId);
+          newId = getRes && getRes.id;
         }
         setDriverAvailabilityId(newId || null);
         setIsCheckedInToday(true);
@@ -328,18 +325,16 @@ export default function SupplierHome() {
       const _driverId = driverId;
       let newId = null;
       if (_driverId) {
-        const res = await axios.post(`${BASE_URL}/api/driver-availability`, {
-          driverId: _driverId,
-          isAvailable: false,
-          reason: customReason,
-        });
-        newId = res.data && res.data.id;
+        const res = await createDriverAvailability(
+          _driverId,
+          false,
+          customReason
+        );
+        newId = res && res.id;
         if (!newId) {
           // Fetch today's row to get id
-          const getRes = await axios.get(
-            `${BASE_URL}/api/driver-availability/today/${_driverId}`
-          );
-          newId = getRes.data && getRes.data.id;
+          const getRes = await getTodayDriverAvailability(_driverId);
+          newId = getRes && getRes.id;
         }
         setDriverAvailabilityId(newId || null);
         setNotCollectingReason(customReason);
@@ -370,17 +365,15 @@ export default function SupplierHome() {
     setEditReasonModalVisible(false);
     try {
       if (driverAvailabilityId) {
-        const res = await axios.put(
-          `${BASE_URL}/api/driver-availability/${driverAvailabilityId}`,
-          {
-            isAvailable: false,
-            reason: customReason,
-          }
+        const res = await updateDriverAvailability(
+          driverAvailabilityId,
+          false,
+          customReason
         );
         // Update state with new values from backend response if available
-        if (res.data) {
-          setNotCollectingReason(res.data.reason || customReason);
-          setDriverAvailabilityId(res.data.id || driverAvailabilityId);
+        if (res) {
+          setNotCollectingReason(res.reason || customReason);
+          setDriverAvailabilityId(res.id || driverAvailabilityId);
         } else {
           setNotCollectingReason(customReason);
         }
@@ -402,13 +395,7 @@ export default function SupplierHome() {
     setEditNotCollectingModalVisible(false);
     try {
       if (driverAvailabilityId) {
-        await axios.put(
-          `${BASE_URL}/api/driver-availability/${driverAvailabilityId}`,
-          {
-            isAvailable: true,
-            reason: null,
-          }
-        );
+        await updateDriverAvailability(driverAvailabilityId, true, null);
         setIsCheckedInToday(true);
         setPageState("checkedIn");
         setNotCollectingReason("");
@@ -432,7 +419,7 @@ export default function SupplierHome() {
   const handleBackToList = () => setSelectedSupplier(null);
 
   console.log("todayTripStatus", todayTripStatus);
-        console.log("todayTripId", todayTripId);
+  console.log("todayTripId", todayTripId);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f8f4" }}>
@@ -486,7 +473,7 @@ export default function SupplierHome() {
             <Text style={styles.checkInText}>Check In</Text>
           </TouchableOpacity>
         )}
-        
+
         {/* If trip exists and status is collected , show All Trips Completed below wallet */}
         {todayTripId &&
           (todayTripStatus === "collected" ||
@@ -497,10 +484,8 @@ export default function SupplierHome() {
                 onPress={async () => {
                   // Fetch trip bag summary for this trip
                   try {
-                    const res = await axios.get(
-                      `${BASE_URL}/api/trip-bags/summary/by-trip/${todayTripId}`
-                    );
-                    setTripBagSummary(res.data || []);
+                    const res = await getTripBagSummaryByTrip(todayTripId);
+                    setTripBagSummary(res || []);
                   } catch {
                     setTripBagSummary([]);
                   }
@@ -537,10 +522,7 @@ export default function SupplierHome() {
                         // Mark as arrived and update trip status
                         try {
                           if (todayTripId) {
-                            await axios.put(
-                              `${BASE_URL}/api/trips/${todayTripId}/status`,
-                              { status: "arrived" }
-                            );
+                            await updateTripStatus(todayTripId, "arrived");
                           }
                         } catch (_err) {
                           Alert.alert(
@@ -759,19 +741,16 @@ export default function SupplierHome() {
                           style: "default",
                           onPress: async () => {
                             try {
-                              const tripRes = await axios.post(
-                                `${BASE_URL}/api/trips`,
-                                {
-                                  driverId,
-                                  routeId,
-                                }
+                              const tripRes = await createTrip(
+                                driverId,
+                                routeId
                               );
-                              if (tripRes.data && tripRes.data.tripId) {
+                              if (tripRes && tripRes.tripId) {
                                 await AsyncStorage.setItem(
                                   "tripId",
-                                  tripRes.data.tripId.toString()
+                                  tripRes.tripId.toString()
                                 );
-                                setTodayTripId(tripRes.data.tripId);
+                                setTodayTripId(tripRes.tripId);
                                 setTodayTripStatus("pending");
                               }
                             } catch (_error) {

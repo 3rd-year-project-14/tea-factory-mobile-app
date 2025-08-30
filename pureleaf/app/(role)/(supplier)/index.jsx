@@ -12,11 +12,15 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
-import { useRouter} from "expo-router";
+import { useRouter } from "expo-router";
 import RBSheet from "react-native-raw-bottom-sheet";
 
-import { BASE_URL } from "../../../constants/ApiConfig";
-import axios from "axios";
+import {
+  getTeaSupplyRequestsBySupplier,
+  createTeaSupplyRequest,
+  updateTeaSupplyRequestBagCount,
+  deleteTeaSupplyRequest,
+} from "../../../services/supplierService";
 
 export default function SupplierHome({ navigation }) {
   const [userName, setUserName] = useState("");
@@ -73,9 +77,7 @@ export default function SupplierHome({ navigation }) {
           setIsLoadingToday(false);
           return;
         }
-        const response = await axios.get(
-          `${BASE_URL}/api/tea-supply-requests/${supplierId}`
-        );
+        const response = await getTeaSupplyRequestsBySupplier(supplierId);
         const data = response.data;
         // Assume data is an array of requests
         if (Array.isArray(data) && data.length > 0) {
@@ -159,10 +161,7 @@ export default function SupplierHome({ navigation }) {
     // If today's request exists, only allow edit, not create
     if (todayRequestId || (isEditing && requestId)) {
       try {
-        await axios.put(
-          `${BASE_URL}/api/tea-supply-requests/${requestId}/bag-count`,
-          { estimatedBagCount: Number(bagCount) }
-        );
+        await updateTeaSupplyRequestBagCount(requestId, bagCount);
         setLastBagCount(bagCount);
         setTodayBagCount(Number(bagCount));
         setSupplyState("placed");
@@ -192,10 +191,7 @@ export default function SupplierHome({ navigation }) {
       );
       return;
     }
-    const response = await axios.post(`${BASE_URL}/api/tea-supply-requests`, {
-      supplierId: supplierId,
-      estimatedBagCount: Number(bagCount),
-    });
+    const response = await createTeaSupplyRequest(supplierId, bagCount);
     const data = response.data;
     if (data && (data.id || data.requestId || data.request_id)) {
       // Support 'id', 'requestId', and 'request_id' from backend
@@ -212,7 +208,7 @@ export default function SupplierHome({ navigation }) {
     // Delete supply request if exists
     if (requestId) {
       try {
-        await axios.delete(`${BASE_URL}/api/tea-supply-requests/${requestId}`);
+        await deleteTeaSupplyRequest(requestId);
         setTodayRequestId(null);
         setTodayBagCount(null);
         setRequestId(null);
