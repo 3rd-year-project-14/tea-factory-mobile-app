@@ -203,6 +203,7 @@ export default function SupplierHome() {
             _driverId = driverData.id || driverData.driverId;
             setDriverId(_driverId);
           }
+          console.log("Driver ID:", _driverId);
 
           // Check today's trip
           if (_driverId) {

@@ -14,12 +14,15 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 import { BASE_URL } from "../../pureleaf/constants/ApiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { login as backendLogin } from "../services/authService";
-import axios from "axios";
+import {
+  login,
+  getDriverDataByUserId,
+  getSupplierRequestByUserId,
+  getSupplierTableByUserId,
+} from "../services/authService";
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // message object: { type: "error", text: string } or null
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -67,7 +70,7 @@ export default function LoginScreen() {
       await AsyncStorage.setItem("firebaseToken", token);
 
       // Send token to backend using authService
-      const response = await backendLogin(token);
+      const response = await login(token);
       const data = response.data;
       const userRole = data.role?.toLowerCase();
       const userId = data.userId || data.id;
@@ -75,15 +78,12 @@ export default function LoginScreen() {
       if (userId) {
         // Store user data from login response
         await AsyncStorage.setItem("userData", JSON.stringify(data));
-
+     
         if (userRole === "driver") {
           // Fetch driver data and store in AsyncStorage
           try {
-            const driverRes = await axios.get(
-              `${BASE_URL}/api/drivers/user/${userId}`
-            );
+            const driverRes = await getDriverDataByUserId(userId);
             const driverData = driverRes.data;
-            console.log("Driver data:", driverData);
             await AsyncStorage.setItem(
               "driverData",
               JSON.stringify(driverData)
@@ -104,40 +104,44 @@ export default function LoginScreen() {
         if (userRole === "pending_user") {
           // Fetch supplier request data and store in AsyncStorage
           try {
-            const supplierReqRes = await fetch(
-              `${BASE_URL}/api/supplier-requests?userId=${userId}`
+            const supplierReqRes = await getSupplierRequestByUserId(userId);
+            const supplierRequestData = supplierReqRes.data;
+            await AsyncStorage.setItem(
+              "supplierRequest",
+              JSON.stringify(supplierRequestData)
             );
-            if (supplierReqRes.ok) {
-              const supplierRequestData = await supplierReqRes.json();
-              await AsyncStorage.setItem(
-                "supplierRequest",
-                JSON.stringify(supplierRequestData)
+          } catch (err) {
+            if (err.response) {
+              console.warn(
+                "Failed to fetch supplier request data",
+                err.response.status,
+                err.response.data
               );
             } else {
-              console.warn("Failed to fetch supplier request data");
+              console.error("Error fetching supplier request data:", err);
             }
-          } catch (err) {
-            console.error("Error fetching supplier request data:", err);
           }
         }
 
         if (userRole === "supplier") {
           // Fetch supplier table details and store in AsyncStorage
           try {
-            const supplierTableRes = await fetch(
-              `${BASE_URL}/api/suppliers/by-user?userId=${userId}`
+            const supplierTableRes = await getSupplierTableByUserId(userId);
+            const supplierTableData = supplierTableRes.data;
+            await AsyncStorage.setItem(
+              "supplierData",
+              JSON.stringify(supplierTableData)
             );
-            if (supplierTableRes.ok) {
-              const supplierTableData = await supplierTableRes.json();
-              await AsyncStorage.setItem(
-                "supplierData",
-                JSON.stringify(supplierTableData)
+          } catch (err) {
+            if (err.response) {
+              console.warn(
+                "Failed to fetch supplier table data",
+                err.response.status,
+                err.response.data
               );
             } else {
-              console.warn("Failed to fetch supplier table data");
+              console.error("Error fetching supplier table data:", err);
             }
-          } catch (err) {
-            console.error("Error fetching supplier table data:", err);
           }
         }
       }
