@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,13 +16,43 @@ import {
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import SlideToConfirm from "rn-slide-to-confirm";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  requestAdvance,
+  getAdvanceRequests,
+} from "../../../services/supplierService";
 
 const mockPayments = [
-  { id: "001", date: "01/06/25", amount: 10000, status: "Pending", description: "Payment pending approval" },
-  { id: "002", date: "02/06/25", amount: 12000, status: "Success", description: "Paid to supplier" },
-  { id: "003", date: "03/06/25", amount: 11000, status: "Pending", description: "Payment pending approval" },
-  { id: "004", date: "04/06/25", amount: 15000, status: "Success", description: "Paid to supplier" },
+  {
+    id: "001",
+    date: "01/06/25",
+    amount: 10000,
+    status: "Pending",
+    description: "Payment pending approval",
+  },
+  {
+    id: "002",
+    date: "02/06/25",
+    amount: 12000,
+    status: "Success",
+    description: "Paid to supplier",
+  },
+  {
+    id: "003",
+    date: "03/06/25",
+    amount: 11000,
+    status: "Pending",
+    description: "Payment pending approval",
+  },
+  {
+    id: "004",
+    date: "04/06/25",
+    amount: 15000,
+    status: "Success",
+    description: "Paid to supplier",
+  },
 ];
 const statusSort = { Pending: 0, Success: 1 };
 
@@ -32,8 +62,11 @@ export default function WalletPage() {
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState("");
   const [advanceType, setAdvanceType] = useState("");
+  const [advancePurpose, setAdvancePurpose] = useState("");
   const [advanceError, setAdvanceError] = useState("");
   const [advanceCards, setAdvanceCards] = useState([]);
+  const [existingAdvances, setExistingAdvances] = useState([]);
+  const [advanceLoading, setAdvanceLoading] = useState(false);
 
   const [showHistory, setShowHistory] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,7 +89,8 @@ export default function WalletPage() {
         );
       })
       .sort((a, b) => {
-        if (statusSort[a.status] !== statusSort[b.status]) return statusSort[a.status] - statusSort[b.status];
+        if (statusSort[a.status] !== statusSort[b.status])
+          return statusSort[a.status] - statusSort[b.status];
         if (a.date !== b.date) return b.date.localeCompare(a.date);
         return b.id.localeCompare(a.id);
       });
@@ -64,10 +98,41 @@ export default function WalletPage() {
 
   const money = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2 });
 
+  // Fetch existing advances when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const fetchExistingAdvances = async () => {
+        try {
+          const supplierDataStr = await AsyncStorage.getItem("supplierData");
+          let supplierId = null;
+          if (supplierDataStr) {
+            const supplierData = JSON.parse(supplierDataStr);
+            if (Array.isArray(supplierData) && supplierData.length > 0) {
+              supplierId = supplierData[0].supplierId;
+            } else if (supplierData && supplierData.supplierId) {
+              supplierId = supplierData.supplierId;
+            }
+          }
+          if (supplierId) {
+            const response = await getAdvanceRequests(supplierId);
+            console.log("Advance requests response:", response.data); // Debug log
+            setExistingAdvances(response.data);
+          }
+        } catch (_error) {
+          // Silently fail for existing advances
+        }
+      };
+      fetchExistingAdvances();
+    }, [])
+  );
+
   return (
     <>
       <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* === WALLET CARD === */}
           <View style={styles.walletCard}>
             <Text style={styles.walletTitle}>My Wallet</Text>
@@ -76,120 +141,238 @@ export default function WalletPage() {
               <Text style={styles.amountValue}>50,000.00</Text>
             </Text>
             <Text style={styles.paymentType}>
-              Payment type : <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
+              Payment type :{" "}
+              <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
             </Text>
             <View style={styles.walletBtnRow}>
-              <TouchableOpacity style={styles.walletBtn} onPress={() => setShowSelector(true)}>
-                <Text style={styles.walletBtnText}>Change{"\n"}Payment type</Text>
+              <TouchableOpacity
+                style={styles.walletBtn}
+                onPress={() => setShowSelector(true)}
+              >
+                <Text style={styles.walletBtnText}>
+                  Change{"\n"}Payment type
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.walletBtn} onPress={() => setShowAdvanceModal(true)}>
-  <Text style={styles.walletBtnText}>Request{"\n"}Advance</Text>
-</TouchableOpacity>
-
+              <TouchableOpacity
+                style={styles.walletBtn}
+                onPress={() => setShowAdvanceModal(true)}
+              >
+                <Text style={styles.walletBtnText}>Request{"\n"}Advance</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-{/* === Requested Advance Cards === */}
-{advanceCards.map((item, index) => (
-  <View key={index} style={styles.collectCard}>
-    <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
-      <Text style={styles.collectTitle}>Advance Request</Text>
-      <Text style={styles.collectAmount}>Rs {Number(item.amount).toLocaleString()}</Text>
-    </View>
-    <Text style={styles.collectDate}>Payment Type : {item.paymentType}</Text>
-  </View>
-))}
-
-{/* === Request Advance Modal === */}
-<Modal
-  visible={showAdvanceModal}
-  transparent
-  animationType="fade"
-  onRequestClose={() => setShowAdvanceModal(false)}
->
-  <TouchableWithoutFeedback onPress={() => setShowAdvanceModal(false)}>
-    <View style={styles.loanModalBackdrop}>
-      <TouchableWithoutFeedback>
-        <View style={styles.advancePopup}>
-          <Text style={styles.loanPopupTitle}>Request Advance</Text>
-
-          <Text style={styles.advanceLabel}>Amount *</Text>
-          <TextInput
-            style={styles.advanceInput}
-            keyboardType="numeric"
-            placeholder="Enter amount"
-            placeholderTextColor="#999"
-            maxLength={9}
-            value={advanceAmount}
-            onChangeText={(value) => {
-              if (/^\d*$/.test(value)) setAdvanceAmount(value);
-            }}
-          />
-
-          <Text style={styles.advanceLabel}>Payment Type *</Text>
-          <View style={styles.advanceDropdown}>
-            {["Cash", "Bank Transfer", "Cheque"].map(type => (
-              <TouchableOpacity
-                key={type}
-                onPress={() => setAdvanceType(type)}
-                style={[
-                  styles.advanceDropdownItem,
-                  advanceType === type && styles.advanceDropdownItemSelected
-                ]}
+          {/* === Requested Advance Cards === */}
+          {[...existingAdvances, ...advanceCards].map((item, index) => (
+            <View key={index} style={styles.collectCard}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  width: "100%",
+                }}
               >
-                <Text style={[
-                  styles.advanceDropdownText,
-                  advanceType === type && styles.advanceDropdownTextSelected
-                ]}>
-                  {type}
+                <Text style={styles.collectTitle}>Advance Request</Text>
+                <Text style={styles.collectAmount}>
+                  Rs{" "}
+                  {Number(item.requestedAmount || item.amount).toLocaleString()}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              </View>
+              <Text style={styles.collectDate}>
+                Payment Method : {item.paymentMethod || item.type}
+              </Text>
+              <Text style={styles.collectDate}>Status : {item.status}</Text>
+              {(item.createdAt ||
+                item.requestedDate ||
+                item.requested_date ||
+                item.date) && (
+                <Text style={styles.collectDate}>
+                  Date :{" "}
+                  {new Date(
+                    item.createdAt ||
+                      item.requestedDate ||
+                      item.requested_date ||
+                      item.date
+                  ).toLocaleDateString("en-GB")}
+                </Text>
+              )}
+              {item.purpose && (
+                <Text style={styles.collectDate}>Purpose : {item.purpose}</Text>
+              )}
+              {item.status === "REJECTED" && item.rejectionReason && (
+                <Text style={[styles.collectDate, { color: "#B3292A" }]}>
+                  Rejection Reason : {item.rejectionReason}
+                </Text>
+              )}
+            </View>
+          ))}
 
-          {advanceError !== "" && (
-            <Text style={styles.advanceErrorText}>{advanceError}</Text>
-          )}
-
-          <TouchableOpacity
-            style={[
-              styles.advanceRequestBtn,
-              !(advanceAmount && advanceType) && { backgroundColor: "#ccc" },
-            ]}
-            disabled={!(advanceAmount && advanceType)}
-            onPress={() => {
-              if (!advanceAmount || !advanceType) {
-                setAdvanceError("All fields are required.");
-                return;
-              }
-              setAdvanceCards(prev => [...prev, {
-                amount: advanceAmount,
-                paymentType: advanceType,
-              }]);
-              // clear form
-              setAdvanceAmount("");
-              setAdvanceType("");
-              setAdvanceError("");
-              setShowAdvanceModal(false);
-            }}
+          {/* === Request Advance Modal === */}
+          <Modal
+            visible={showAdvanceModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowAdvanceModal(false)}
           >
-            <Text style={styles.advanceRequestBtnText}>Request</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableWithoutFeedback>
-    </View>
-  </TouchableWithoutFeedback>
-</Modal>
+            <TouchableWithoutFeedback
+              onPress={() => setShowAdvanceModal(false)}
+            >
+              <View style={styles.loanModalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.advancePopup}>
+                    <Text style={styles.loanPopupTitle}>Request Advance</Text>
 
+                    <Text style={styles.advanceLabel}>Amount *</Text>
+                    <TextInput
+                      style={styles.advanceInput}
+                      keyboardType="numeric"
+                      placeholder="Enter amount"
+                      placeholderTextColor="#999"
+                      maxLength={9}
+                      value={advanceAmount}
+                      onChangeText={(value) => {
+                        if (/^\d*$/.test(value)) setAdvanceAmount(value);
+                      }}
+                    />
+
+                    <Text style={styles.advanceLabel}>Payment Type *</Text>
+                    <View style={styles.advanceDropdown}>
+                      {["Cash", "Bank"].map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => setAdvanceType(type)}
+                          style={[
+                            styles.advanceDropdownItem,
+                            advanceType === type &&
+                              styles.advanceDropdownItemSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.advanceDropdownText,
+                              advanceType === type &&
+                                styles.advanceDropdownTextSelected,
+                            ]}
+                          >
+                            {type}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={styles.advanceLabel}>Purpose (Optional)</Text>
+                    <TextInput
+                      style={styles.advanceInput}
+                      placeholder="Enter purpose"
+                      placeholderTextColor="#999"
+                      value={advancePurpose}
+                      onChangeText={setAdvancePurpose}
+                      maxLength={100}
+                    />
+
+                    {advanceError !== "" && (
+                      <Text style={styles.advanceErrorText}>
+                        {advanceError}
+                      </Text>
+                    )}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.advanceRequestBtn,
+                        (!(advanceAmount && advanceType) || advanceLoading) && {
+                          backgroundColor: "#ccc",
+                        },
+                      ]}
+                      disabled={
+                        !(advanceAmount && advanceType) || advanceLoading
+                      }
+                      onPress={async () => {
+                        if (!advanceAmount || !advanceType) {
+                          setAdvanceError("All fields are required.");
+                          return;
+                        }
+                        setAdvanceLoading(true);
+                        try {
+                          const supplierDataStr =
+                            await AsyncStorage.getItem("supplierData");
+                          let supplierId = null;
+                          if (supplierDataStr) {
+                            const supplierData = JSON.parse(supplierDataStr);
+                            if (
+                              Array.isArray(supplierData) &&
+                              supplierData.length > 0
+                            ) {
+                              supplierId = supplierData[0].supplierId;
+                            } else if (
+                              supplierData &&
+                              supplierData.supplierId
+                            ) {
+                              supplierId = supplierData.supplierId;
+                            }
+                          }
+                          if (!supplierId) {
+                            setAdvanceError("Supplier ID not found.");
+                            setAdvanceLoading(false);
+                            return;
+                          }
+                          const paymentMethod =
+                            advanceType === "Cash" ? "CASH" : "BANK";
+                          console.log("Advance Request Data:", {
+                            supplierId,
+                            requestedAmount: advanceAmount,
+                            paymentMethod,
+                            purpose: advancePurpose || null,
+                          });
+                          const response = await requestAdvance(
+                            supplierId,
+                            advanceAmount,
+                            paymentMethod,
+                            advancePurpose || null
+                          );
+                          const data = response.data;
+                          setAdvanceCards((prev) => [...prev, data]);
+                          // clear form
+                          setAdvanceAmount("");
+                          setAdvanceType("");
+                          setAdvancePurpose("");
+                          setAdvanceError("");
+                          setShowAdvanceModal(false);
+                        } catch (_error) {
+                          setAdvanceError(
+                            "Failed to request advance. Please try again."
+                          );
+                        } finally {
+                          setAdvanceLoading(false);
+                        }
+                      }}
+                    >
+                      <Text style={styles.advanceRequestBtnText}>
+                        {advanceLoading ? "Requesting..." : "Request"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
 
           {/* === COLLECT PAYMENT CARD === */}
           <View style={styles.collectCard}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                width: "100%",
+              }}
+            >
               <Text style={styles.collectTitle}>Collect your Payment</Text>
               <Text style={styles.collectAmount}>Rs 50,000.00</Text>
             </View>
             <Text style={styles.collectDate}>Date : 25/06/25</Text>
-            <TouchableOpacity style={styles.collectBtn} onPress={() => setShowSlideModal(true)}>
+            <TouchableOpacity
+              style={styles.collectBtn}
+              onPress={() => setShowSlideModal(true)}
+            >
               <Text style={styles.collectBtnText}>Collect</Text>
             </TouchableOpacity>
           </View>
@@ -203,12 +386,18 @@ export default function WalletPage() {
               <Text style={styles.loanPending}>Monthly payment</Text>
               <Text style={styles.loanMonthAmount}>Rs 18,000.00</Text>
             </View>
-            <TouchableOpacity style={styles.loanBtn} onPress={() => setShowLoanDetails(true)}>
+            <TouchableOpacity
+              style={styles.loanBtn}
+              onPress={() => setShowLoanDetails(true)}
+            >
               <Text style={styles.loanBtnText}>View</Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={{ marginTop: 22, marginLeft: 14 }} onPress={() => setShowHistory(true)}>
+          <TouchableOpacity
+            style={{ marginTop: 22, marginLeft: 14 }}
+            onPress={() => setShowHistory(true)}
+          >
             <Text style={styles.historyText}>View Payment History</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -261,7 +450,9 @@ export default function WalletPage() {
                   <Text style={styles.loanPopupValue}>Rs 50,000.00</Text>
                 </View>
                 <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Monthly Installment:</Text>
+                  <Text style={styles.loanPopupLabel}>
+                    Monthly Installment:
+                  </Text>
                   <Text style={styles.loanPopupValue}>Rs 18,000.00</Text>
                 </View>
                 <View style={styles.loanPopupRow}>
@@ -315,10 +506,22 @@ export default function WalletPage() {
                     autoCorrect={false}
                   />
                   <View style={[styles.tableRow, styles.tableHeader]}>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 0.9 }]}>Payment ID</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Date</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1.1 }]}>Total(Rs)</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Status</Text>
+                    <Text
+                      style={[styles.cell, styles.headerCell, { flex: 0.9 }]}
+                    >
+                      Payment ID
+                    </Text>
+                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>
+                      Date
+                    </Text>
+                    <Text
+                      style={[styles.cell, styles.headerCell, { flex: 1.1 }]}
+                    >
+                      Total(Rs)
+                    </Text>
+                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>
+                      Status
+                    </Text>
                   </View>
                   <FlatList
                     data={filteredPayments}
@@ -331,22 +534,36 @@ export default function WalletPage() {
                         onPress={() => setSelectedPayment(item)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.cell, { flex: 0.9 }]}>{item.id}</Text>
-                        <Text style={[styles.cell, { flex: 1 }]}>{item.date}</Text>
-                        <Text style={[styles.cell, { flex: 1.1 }]}>{money(item.amount)}</Text>
-                        <Text style={[
-                          styles.cell,
-                          { flex: 1 },
-                          item.status === "Pending"
-                            ? styles.pendingStatus
-                            : styles.successStatus,
-                        ]}>
+                        <Text style={[styles.cell, { flex: 0.9 }]}>
+                          {item.id}
+                        </Text>
+                        <Text style={[styles.cell, { flex: 1 }]}>
+                          {item.date}
+                        </Text>
+                        <Text style={[styles.cell, { flex: 1.1 }]}>
+                          {money(item.amount)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.cell,
+                            { flex: 1 },
+                            item.status === "Pending"
+                              ? styles.pendingStatus
+                              : styles.successStatus,
+                          ]}
+                        >
                           {item.status}
                         </Text>
                       </TouchableOpacity>
                     )}
                     ListEmptyComponent={() => (
-                      <Text style={{ color: "#999", alignSelf: "center", marginTop: 40 }}>
+                      <Text
+                        style={{
+                          color: "#999",
+                          alignSelf: "center",
+                          marginTop: 40,
+                        }}
+                      >
                         No results found.
                       </Text>
                     )}
@@ -376,20 +593,26 @@ export default function WalletPage() {
                   </Text>
                   <Text style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Date: </Text>
-                    <Text style={styles.detailVal}>{selectedPayment?.date}</Text>
+                    <Text style={styles.detailVal}>
+                      {selectedPayment?.date}
+                    </Text>
                   </Text>
                   <Text style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Amount: </Text>
-                    <Text style={styles.detailVal}>Rs {money(selectedPayment?.amount || 0)}</Text>
+                    <Text style={styles.detailVal}>
+                      Rs {money(selectedPayment?.amount || 0)}
+                    </Text>
                   </Text>
                   <Text style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Status: </Text>
-                    <Text style={[
-                      styles.detailVal,
-                      selectedPayment?.status === "Pending"
-                        ? styles.pendingStatus
-                        : styles.successStatus,
-                    ]}>
+                    <Text
+                      style={[
+                        styles.detailVal,
+                        selectedPayment?.status === "Pending"
+                          ? styles.pendingStatus
+                          : styles.successStatus,
+                      ]}
+                    >
                       {selectedPayment?.status}
                     </Text>
                   </Text>
@@ -477,10 +700,25 @@ const styles = StyleSheet.create({
     padding: 23,
     alignItems: "center",
   },
-  walletTitle: { fontSize: 21, fontWeight: "500", color: "#111", marginBottom: 9 },
+  walletTitle: {
+    fontSize: 21,
+    fontWeight: "500",
+    color: "#111",
+    marginBottom: 9,
+  },
   walletAmount: { fontSize: 28, color: "#195645", marginBottom: 5 },
-  amountValue: { fontWeight: "bold", fontSize: 33, color: "#1c604d", letterSpacing: 1.2 },
-  paymentType: { fontSize: 16, color: "#222", marginVertical: 7, marginBottom: 15 },
+  amountValue: {
+    fontWeight: "bold",
+    fontSize: 33,
+    color: "#1c604d",
+    letterSpacing: 1.2,
+  },
+  paymentType: {
+    fontSize: 16,
+    color: "#222",
+    marginVertical: 7,
+    marginBottom: 15,
+  },
   walletBtnRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -535,9 +773,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 1,
   },
-  loanTitle: { fontSize: 17, fontWeight: "700", color: "#183d2b", marginBottom: 3 },
+  loanTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginBottom: 3,
+  },
   loanPending: { color: "#222", fontSize: 15 },
-  loanAmount: { fontSize: 22, fontWeight: "bold", color: "#165E52", marginVertical: 2 },
+  loanAmount: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#165E52",
+    marginVertical: 2,
+  },
   loanRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -546,7 +794,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 5,
   },
-  loanMonthAmount: { fontSize: 16, fontWeight: "600", color: "#183d2b", marginLeft: 18 },
+  loanMonthAmount: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#183d2b",
+    marginLeft: 18,
+  },
   loanBtn: {
     backgroundColor: "#165E52",
     borderRadius: 17,
@@ -639,7 +892,7 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
     minHeight: 470,
     shadowColor: "#000",
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: -4 },
   },
   downArrowBtn: { alignItems: "center", marginVertical: 0, marginBottom: 6 },
@@ -734,78 +987,71 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-
   advancePopup: {
-  width: 310,
-  backgroundColor: "#fff",
-  borderRadius: 15,
-  padding: 22,
-  elevation: 6,
-  shadowColor: "#000",
-  shadowOpacity: 0.2,
-  shadowOffset: { width: 0, height: 2 },
-},
-advanceLabel: {
-  fontSize: 15,
-  fontWeight: "600",
-  marginTop: 14,
-  marginBottom: 6,
-  color: "#183d2b",
-},
-advanceInput: {
-  backgroundColor: "#eaf2ea",
-  borderRadius: 6,
-  fontSize: 16,
-  color: "#222",
-  paddingVertical: 7,
-  paddingHorizontal: 14,
-},
-advanceDropdown: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  marginTop: 4,
-},
-advanceDropdownItem: {
-  paddingVertical: 8,
-  paddingHorizontal: 14,
-  backgroundColor: "#ecf3ef",
-  borderRadius: 10,
-  marginRight: 8,
-  marginBottom: 8,
-},
-advanceDropdownItemSelected: {
-  backgroundColor: "#165E52",
-},
-advanceDropdownText: {
-  color: "#165E52",
-  fontWeight: "600",
-},
-advanceDropdownTextSelected: {
-  color: "#fff",
-},
-advanceErrorText: {
-  color: "#B3292A",
-  fontSize: 14,
-  marginTop: 4,
-  marginBottom: 6,
-  fontWeight: "600",
-},
-advanceRequestBtn: {
-  backgroundColor: "#165E52",
-  marginTop: 20,
-  borderRadius: 10,
-  paddingVertical: 10,
-  alignItems: "center",
-},
-advanceRequestBtnText: {
-  color: "#fff",
-  fontWeight: "700",
-  fontSize: 16,
-},
-  scrollContent: {
-  alignItems: "center",
-  paddingBottom: 90, 
-
-},
-
+    width: 310,
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 22,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  advanceLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 14,
+    marginBottom: 6,
+    color: "#183d2b",
+  },
+  advanceInput: {
+    backgroundColor: "#eaf2ea",
+    borderRadius: 6,
+    fontSize: 16,
+    color: "#222",
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+  },
+  advanceDropdown: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 4,
+  },
+  advanceDropdownItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: "#ecf3ef",
+    borderRadius: 10,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  advanceDropdownItemSelected: {
+    backgroundColor: "#165E52",
+  },
+  advanceDropdownText: {
+    color: "#165E52",
+    fontWeight: "600",
+  },
+  advanceDropdownTextSelected: {
+    color: "#fff",
+  },
+  advanceErrorText: {
+    color: "#B3292A",
+    fontSize: 14,
+    marginTop: 4,
+    marginBottom: 6,
+    fontWeight: "600",
+  },
+  advanceRequestBtn: {
+    backgroundColor: "#165E52",
+    marginTop: 20,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  advanceRequestBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 });
