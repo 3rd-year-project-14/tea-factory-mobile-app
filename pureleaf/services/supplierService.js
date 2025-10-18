@@ -20,3 +20,21 @@ export const updateTeaSupplyRequestBagCount = (requestId, estimatedBagCount) =>
 // Delete a tea supply request
 export const deleteTeaSupplyRequest = (requestId) =>
   apiClient.delete(`/api/tea-supply-requests/${requestId}`);
+
+// Request an advance payment
+export const requestAdvance = (
+  supplierId,
+  requestedAmount,
+  paymentMethod,
+  purpose = null
+) =>
+  apiClient.post("/api/advances/request", {
+    supplierId,
+    requestedAmount: Number(requestedAmount),
+    paymentMethod,
+    ...(purpose && { purpose }),
+  });
+
+// Get advance requests for a supplier
+export const getAdvanceRequests = (supplierId) =>
+  apiClient.get(`/api/advances/supplier/${supplierId}`);
