@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,54 +6,17 @@ import {
   StyleSheet,
   SafeAreaView,
   RefreshControl,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
 } from "react-native";
-import { LineChart, PieChart } from "react-native-chart-kit";
-import { Dimensions } from "react-native";
+import { PieChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
 import { usePullToRefresh } from "../../../../hooks/usePullToRefresh";
-
-const supplyData = [
-  {
-    id: "1",
-    date: "2025-07-01",
-    kg: 22,
-    income: 3200,
-    status: "Delivered",
-    condition: "Good",
-  },
-  {
-    id: "2",
-    date: "2025-07-05",
-    kg: 17,
-    income: 2500,
-    status: "Pending",
-    condition: "Coarse",
-  },
-  {
-    id: "3",
-    date: "2025-07-10",
-    kg: 10,
-    income: 1600,
-    status: "Delivered",
-    condition: "Wet",
-  },
-  {
-    id: "4",
-    date: "2025-07-15",
-    kg: 14.5,
-    income: 2100,
-    status: "Delivered",
-    condition: "Good",
-  },
-  {
-    id: "5",
-    date: "2025-07-20",
-    kg: 18,
-    income: 2800,
-    status: "Pending",
-    condition: "Coarse",
-  },
-];
+import {
+  getWeightsSummary,
+  getDailySummary,
+} from "../../../../services/supplierService";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -65,61 +28,141 @@ const chartConfig = {
   decimalPlaces: 0,
 };
 
+const monthsArray = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const currentMonthIndex = new Date().getMonth();
+const months = [
+  ...monthsArray.slice(currentMonthIndex),
+  ...monthsArray.slice(0, currentMonthIndex),
+];
+
 export default function IncomeScreen() {
+  const [selectedMonth, setSelectedMonth] = useState(0); // Now 0 is current month
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [summaryData, setSummaryData] = useState(null);
+  const [dailyData, setDailyData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const refreshData = async () => {
-    // For static data, no refresh needed, but keeping for consistency
+    setLoading(true);
+    const actualMonth = (currentMonthIndex + selectedMonth) % 12;
+    try {
+      const [summaryResponse, dailyResponse] = await Promise.all([
+        getWeightsSummary(15, actualMonth, selectedYear),
+        getDailySummary(15, actualMonth, selectedYear),
+      ]);
+      setSummaryData(summaryResponse.data);
+      setDailyData(dailyResponse.data);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    refreshData();
+  }, [selectedMonth, selectedYear]);
 
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
 
-  const filteredData = [...supplyData].sort(
-    (a, b) => new Date(a.date) - new Date(b.date)
+  const totalKg = summaryData?.totalGrossWeight || 0;
+  const totalIncome = summaryData?.totalNetWeight || 0;
+
+  const conditions = ["Wet", "Coarse", "BagWeight", "Good"];
+  const conditionValues = {
+    Wet: summaryData?.totalWet || 0,
+    Coarse: summaryData?.totalCoarse || 0,
+    BagWeight: summaryData?.totalTareWeight || 0,
+    Good: summaryData?.totalNetWeight || 0,
+  };
+
+  const pieConditionData = conditions
+    .map((cond, i) => ({
+      name: cond,
+      population: conditionValues[cond],
+      color: ["#A8E6CF", "#56B870", "#FFD700", "#2E7D32"][i],
+      legendFontColor: "#274C3C",
+      legendFontSize: 14,
+    }))
+    .filter((item) => item.population > 0);
+
+  // Calculate totals from daily data
+  const totalBags = dailyData.reduce((sum, item) => sum + item.bagCount, 0);
+  const totalGross = dailyData.reduce((sum, item) => sum + item.grossWeight, 0);
+  const totalNet = dailyData.reduce((sum, item) => sum + item.netWeight, 0);
+  const totalWater = dailyData.reduce((sum, item) => sum + item.water, 0);
+  const totalCoarse = dailyData.reduce((sum, item) => sum + item.coarseLeaf, 0);
+  const totalBagWeight = dailyData.reduce(
+    (sum, item) => sum + item.bagWeight,
+    0
   );
 
-  const totalKg = filteredData.reduce((acc, item) => acc + item.kg, 0);
-  const totalIncome = filteredData.reduce((acc, item) => acc + item.income, 0);
-
-  const conditions = ["Wet", "Coarse", "Good"];
-  const conditionCounts = { Wet: 0, Coarse: 0, Good: 0 };
-  filteredData.forEach((item) => {
-    if (conditionCounts[item.condition] !== undefined)
-      conditionCounts[item.condition]++;
-  });
-
-  const pieConditionData = conditions.map((cond, i) => ({
-    name: cond,
-    population: conditionCounts[cond],
-    color: ["#A8E6CF", "#56B870", "#2E7D32"][i],
-    legendFontColor: "#274C3C",
-    legendFontSize: 14,
-  }));
-
-  const labels = filteredData.map((item) => item.date.substring(5)); // MM-DD
-  const datasets = [{ data: filteredData.map((item) => item.income) }];
-
   function renderTable() {
+    if (dailyData.length === 0) {
+      return (
+        <View style={styles.noDataContainer}>
+          <Ionicons name="calendar-outline" size={48} color="#AAB8A9" />
+          <Text style={styles.noDataText}>
+            No daily data available for the selected month
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <ScrollView horizontal style={{ marginBottom: 100 }}>
         <View style={styles.tableWrapper}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderText, { flex: 1.3 }]}>Date</Text>
-            <Text style={[styles.tableHeaderText, { flex: 1 }]}>Kg</Text>
-            <Text style={[styles.tableHeaderText, { flex: 1.4 }]}>
-              Income (Rs.)
+            <Text style={[styles.tableHeaderText, { flex: 1 }]}>Day</Text>
+            <Text style={[styles.tableHeaderText, { flex: 1 }]}>Bag Count</Text>
+            <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>
+              Gross Weight
             </Text>
-            <Text style={[styles.tableHeaderText, { flex: 1.3 }]}>
-              Condition
+            <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>
+              Net Weight
+            </Text>
+            <Text style={[styles.tableHeaderText, { flex: 1 }]}>Water</Text>
+            <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>
+              Coarse Leaf
+            </Text>
+            <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>
+              Bag Weight
             </Text>
           </View>
-          {filteredData.map((item) => (
-            <View style={styles.tableRow} key={item.id}>
-              <Text style={[styles.tableCell, { flex: 1.3 }]}>{item.date}</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{item.kg}</Text>
-              <Text style={[styles.tableCell, { flex: 1.4 }]}>
-                Rs. {item.income}
+          {dailyData.map((item, index) => (
+            <View style={styles.tableRow} key={index}>
+              <Text style={[styles.tableCell, { flex: 1 }]}>{item.day}</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>
+                {item.bagCount}
               </Text>
-              <Text style={[styles.tableCell, { flex: 1.3 }]}>
-                {item.condition}
+              <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                {item.grossWeight} kg
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                {item.netWeight} kg
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}>
+                {item.water} kg
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                {item.coarseLeaf} kg
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                {item.bagWeight} kg
               </Text>
             </View>
           ))}
@@ -136,7 +179,59 @@ export default function IncomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <Text style={styles.title}>Supply & Income Analytics</Text>
+        <Text style={styles.title}>Supply Analytics</Text>
+
+        {loading && (
+          <ActivityIndicator
+            size="large"
+            color="#274C3C"
+            style={{ marginVertical: 20 }}
+          />
+        )}
+
+        {/* Month and Year Filter */}
+        <View style={styles.filterContainer}>
+          <View style={styles.yearSelector}>
+            <TouchableOpacity
+              onPress={() => setSelectedYear(selectedYear - 1)}
+              style={styles.yearButton}
+            >
+              <Ionicons name="chevron-back" size={24} color="#274C3C" />
+            </TouchableOpacity>
+            <Text style={styles.yearText}>{selectedYear}</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedYear(selectedYear + 1)}
+              style={styles.yearButton}
+            >
+              <Ionicons name="chevron-forward" size={24} color="#274C3C" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.monthScroll}
+          >
+            {months.map((month, index) => (
+              <TouchableOpacity
+                key={index}
+                onPress={() => setSelectedMonth(index)}
+                style={[
+                  styles.monthButton,
+                  selectedMonth === index && styles.selectedMonth,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.monthText,
+                    selectedMonth === index && styles.selectedMonthText,
+                  ]}
+                >
+                  {month}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Summary Cards */}
         <View style={styles.summaryRow}>
@@ -147,8 +242,8 @@ export default function IncomeScreen() {
           </View>
           <View style={styles.summaryCard}>
             <Ionicons name="wallet-outline" size={26} color="#263A29" />
-            <Text style={styles.summaryLabel}>Total Income</Text>
-            <Text style={styles.summaryValue}>Rs. {totalIncome}</Text>
+            <Text style={styles.summaryLabel}>Final Weight</Text>
+            <Text style={styles.summaryValue}>{totalIncome} kg</Text>
           </View>
         </View>
 
@@ -156,40 +251,72 @@ export default function IncomeScreen() {
         <Text style={styles.sectionTitle}>Analytics</Text>
 
         <Text style={styles.chartLabel}>Entry Condition Distribution</Text>
-        <PieChart
-          data={pieConditionData}
-          width={screenWidth * 0.95}
-          height={190}
-          chartConfig={chartConfig}
-          accessor="population"
-          backgroundColor="transparent"
-          paddingLeft="15"
-          absolute
-        />
-
-        <Text style={[styles.chartLabel, { marginTop: 24 }]}>
-          Income Trend (Time Plot)
-        </Text>
-        <LineChart
-          data={{ labels, datasets }}
-          width={screenWidth * 0.95}
-          height={240}
-          chartConfig={chartConfig}
-          bezier
-          fromZero
-          style={{ borderRadius: 18 }}
-        />
+        {pieConditionData.length > 0 ? (
+          <PieChart
+            data={pieConditionData}
+            width={screenWidth * 0.95}
+            height={190}
+            chartConfig={chartConfig}
+            accessor="population"
+            backgroundColor="transparent"
+            paddingLeft="15"
+            absolute
+          />
+        ) : (
+          <Text style={styles.noDataText}>
+            No data available for selected period
+          </Text>
+        )}
 
         {/* Table */}
         <Text style={styles.sectionTitle}>Supply History</Text>
         {renderTable()}
+
+        {/* Table Summary */}
+        <Text style={styles.sectionTitle}>Monthly Totals</Text>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryCard}>
+            <Ionicons name="bag-outline" size={26} color="#263A29" />
+            <Text style={styles.summaryLabel}>Total Bags</Text>
+            <Text style={styles.summaryValue}>{totalBags}</Text>
+          </View>
+          <View style={styles.summaryCard}>
+            <Ionicons name="cube-outline" size={26} color="#263A29" />
+            <Text style={styles.summaryLabel}>Total Gross</Text>
+            <Text style={styles.summaryValue}>{totalGross} kg</Text>
+          </View>
+        </View>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryCard}>
+            <Ionicons name="scale-outline" size={26} color="#263A29" />
+            <Text style={styles.summaryLabel}>Total Net</Text>
+            <Text style={styles.summaryValue}>{totalNet} kg</Text>
+          </View>
+          <View style={styles.summaryCard}>
+            <Ionicons name="water-outline" size={26} color="#263A29" />
+            <Text style={styles.summaryLabel}>Total Water</Text>
+            <Text style={styles.summaryValue}>{totalWater} kg</Text>
+          </View>
+        </View>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryCard}>
+            <Ionicons name="leaf-outline" size={26} color="#263A29" />
+            <Text style={styles.summaryLabel}>Total Coarse</Text>
+            <Text style={styles.summaryValue}>{totalCoarse} kg</Text>
+          </View>
+          <View style={styles.summaryCard}>
+            <Ionicons name="bag-handle-outline" size={26} color="#263A29" />
+            <Text style={styles.summaryLabel}>Total Bag Weight</Text>
+            <Text style={styles.summaryValue}>{totalBagWeight} kg</Text>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
+  container: { padding: 20, paddingBottom: 100 },
   title: {
     fontSize: 28,
     fontWeight: "800",
@@ -275,5 +402,57 @@ const styles = StyleSheet.create({
     color: "#274C3C",
     textAlign: "center",
     paddingHorizontal: 6,
+  },
+  filterContainer: {
+    marginBottom: 20,
+  },
+  yearSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  yearButton: {
+    padding: 10,
+  },
+  yearText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#274C3C",
+    marginHorizontal: 20,
+  },
+  monthScroll: {
+    marginHorizontal: 20,
+  },
+  monthButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginHorizontal: 5,
+    borderRadius: 20,
+    backgroundColor: "#E7EDEB",
+  },
+  selectedMonth: {
+    backgroundColor: "#274C3C",
+  },
+  monthText: {
+    fontSize: 16,
+    color: "#274C3C",
+  },
+  selectedMonthText: {
+    color: "#fff",
+  },
+  noDataText: {
+    textAlign: "center",
+    fontSize: 16,
+    color: "#274C3C",
+    marginVertical: 20,
+  },
+  noDataContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    backgroundColor: "#F9F9F9",
+    borderRadius: 12,
+    marginBottom: 100,
   },
 });
