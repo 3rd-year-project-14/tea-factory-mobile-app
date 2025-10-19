@@ -13,6 +13,7 @@ import {
   Platform,
   Keyboard,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +24,7 @@ import {
   requestAdvance,
   getAdvanceRequests,
 } from "../../../services/supplierService";
+import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
 const mockPayments = [
   {
@@ -76,6 +78,30 @@ export default function WalletPage() {
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [slideConfirmed, setSlideConfirmed] = useState(false);
   const [showLoanDetails, setShowLoanDetails] = useState(false);
+
+  const refreshData = useCallback(async () => {
+    try {
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        const supplierData = JSON.parse(supplierDataStr);
+        if (Array.isArray(supplierData) && supplierData.length > 0) {
+          supplierId = supplierData[0].supplierId;
+        } else if (supplierData && supplierData.supplierId) {
+          supplierId = supplierData.supplierId;
+        }
+      }
+      if (supplierId) {
+        const response = await getAdvanceRequests(supplierId);
+        console.log("Advance requests response:", response.data); // Debug log
+        setExistingAdvances(response.data);
+      }
+    } catch (_error) {
+      // Silently fail for existing advances
+    }
+  }, []);
+
+  const { refreshing, onRefresh } = usePullToRefresh(refreshData);
 
   const filteredPayments = useMemo(() => {
     return mockPayments
@@ -132,6 +158,9 @@ export default function WalletPage() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           {/* === WALLET CARD === */}
           <View style={styles.walletCard}>

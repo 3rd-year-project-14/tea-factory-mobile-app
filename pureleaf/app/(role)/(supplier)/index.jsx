@@ -11,6 +11,7 @@ import {
   Keyboard,
   ImageBackground,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import RBSheet from "react-native-raw-bottom-sheet";
@@ -21,6 +22,7 @@ import {
   updateTeaSupplyRequestBagCount,
   deleteTeaSupplyRequest,
 } from "../../../services/supplierService";
+import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
 export default function SupplierHome({ navigation }) {
   const [userName, setUserName] = useState("");
@@ -37,89 +39,98 @@ export default function SupplierHome({ navigation }) {
   const [isLoadingToday, setIsLoadingToday] = useState(true);
 
   const [simPage, setSimPage] = useState(1);
-  // Fetch today's supply request for supplier on mount
-  useEffect(() => {
-    // Fetch userData from AsyncStorage for greeting
-    const loadUserName = async () => {
-      try {
-        const userDataStr = await AsyncStorage.getItem("userData");
-        if (userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          setUserName(userData.name || "");
-        }
-      } catch (_error) {
-        setUserName("");
+
+  const loadUserName = React.useCallback(async () => {
+    try {
+      const userDataStr = await AsyncStorage.getItem("userData");
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        setUserName(userData.name || "");
       }
-    };
-    loadUserName();
-    const fetchSupplierRequests = async () => {
-      setIsLoadingToday(true);
-      try {
-        // Get supplierId from stored supplierData
-        const supplierDataStr = await AsyncStorage.getItem("supplierData");
-        let supplierId = null;
-        if (supplierDataStr) {
-          try {
-            const supplierData = JSON.parse(supplierDataStr);
-            if (Array.isArray(supplierData) && supplierData.length > 0) {
-              supplierId = supplierData[0].supplierId;
-            } else if (supplierData && supplierData.supplierId) {
-              supplierId = supplierData.supplierId;
-            }
-          } catch (_error) {
-            supplierId = null;
+    } catch (_error) {
+      setUserName("");
+    }
+  }, []);
+
+  const fetchSupplierRequests = React.useCallback(async () => {
+    setIsLoadingToday(true);
+    try {
+      // Get supplierId from stored supplierData
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        try {
+          const supplierData = JSON.parse(supplierDataStr);
+          if (Array.isArray(supplierData) && supplierData.length > 0) {
+            supplierId = supplierData[0].supplierId;
+          } else if (supplierData && supplierData.supplierId) {
+            supplierId = supplierData.supplierId;
           }
+        } catch (_error) {
+          supplierId = null;
         }
-        if (!supplierId) {
-          setTodayRequestId(null);
-          setTodayBagCount(null);
-          setSupplyState("none");
-          setIsLoadingToday(false);
-          return;
-        }
-        const response = await getTeaSupplyRequestsBySupplier(supplierId);
-        const data = response.data;
-        // Assume data is an array of requests
-        if (Array.isArray(data) && data.length > 0) {
-          // Find all requests for today
-          const today = new Date();
-          const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
-          const todaysRequests = data.filter((req) => {
-            // Match by supplyDate (sample response uses supplyDate)
-            return req.supplyDate === todayStr;
-          });
-          // Use the last request for today (if any)
-          const latestRequest =
-            todaysRequests.length > 0
-              ? todaysRequests[todaysRequests.length - 1]
-              : null;
-          if (latestRequest && latestRequest.requestId) {
-            setTodayRequestId(latestRequest.requestId);
-            setRequestId(latestRequest.requestId);
-            if (latestRequest.estimatedBagCount !== undefined) {
-              setTodayBagCount(latestRequest.estimatedBagCount);
-              setLastBagCount(latestRequest.estimatedBagCount);
-            }
-            setSupplyState("placed");
-          } else {
-            setTodayRequestId(null);
-            setTodayBagCount(null);
-            setSupplyState("none");
+      }
+      if (!supplierId) {
+        setTodayRequestId(null);
+        setTodayBagCount(null);
+        setSupplyState("none");
+        setIsLoadingToday(false);
+        return;
+      }
+      const response = await getTeaSupplyRequestsBySupplier(supplierId);
+      const data = response.data;
+      // Assume data is an array of requests
+      if (Array.isArray(data) && data.length > 0) {
+        // Find all requests for today
+        const today = new Date();
+        const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+        const todaysRequests = data.filter((req) => {
+          // Match by supplyDate (sample response uses supplyDate)
+          return req.supplyDate === todayStr;
+        });
+        // Use the last request for today (if any)
+        const latestRequest =
+          todaysRequests.length > 0
+            ? todaysRequests[todaysRequests.length - 1]
+            : null;
+        if (latestRequest && latestRequest.requestId) {
+          setTodayRequestId(latestRequest.requestId);
+          setRequestId(latestRequest.requestId);
+          if (latestRequest.estimatedBagCount !== undefined) {
+            setTodayBagCount(latestRequest.estimatedBagCount);
+            setLastBagCount(latestRequest.estimatedBagCount);
           }
+          setSupplyState("placed");
         } else {
           setTodayRequestId(null);
           setTodayBagCount(null);
           setSupplyState("none");
         }
-      } catch {
+      } else {
         setTodayRequestId(null);
         setTodayBagCount(null);
         setSupplyState("none");
       }
-      setIsLoadingToday(false);
-    };
-    fetchSupplierRequests();
+    } catch {
+      setTodayRequestId(null);
+      setTodayBagCount(null);
+      setSupplyState("none");
+    }
+    setIsLoadingToday(false);
   }, []);
+
+  const refreshData = React.useCallback(async () => {
+    await loadUserName();
+    await fetchSupplierRequests();
+  }, [loadUserName, fetchSupplierRequests]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(refreshData);
+
+  // Fetch today's supply request for supplier on mount
+  useEffect(() => {
+    loadUserName();
+    fetchSupplierRequests();
+  }, [loadUserName, fetchSupplierRequests]);
 
   // Open the modal for entering supply
   const openSupplyModal = () => {
@@ -581,6 +592,9 @@ export default function SupplierHome({ navigation }) {
         contentContainerStyle={{ paddingBottom: 80 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Hero with overlayed greeting */}
         <View style={styles.heroCard}>

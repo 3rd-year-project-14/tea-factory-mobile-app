@@ -10,9 +10,11 @@ import {
   Platform,
   Modal,
   TextInput,
+  RefreshControl,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { usePullToRefresh } from "../../../../hooks/usePullToRefresh";
 
 export const options = { title: "Profile" };
 
@@ -33,6 +35,57 @@ export default function Profile() {
     monthlyTeaCapacity: "",
   });
 
+  const loadProfileData = async () => {
+    try {
+      const userDataStr = await AsyncStorage.getItem("userData");
+      const supplierRequestStr = await AsyncStorage.getItem("supplierRequest");
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      const userData = userDataStr ? JSON.parse(userDataStr) : {};
+      const supplierRequest = supplierRequestStr
+        ? JSON.parse(supplierRequestStr)
+        : null;
+      const supplierData = supplierDataStr ? JSON.parse(supplierDataStr) : null;
+
+      // Get values from userData
+      const name = userData.name || "";
+      const email = userData.email || "";
+      const homeAddress = userData.address || "";
+      const phoneNumber = userData.contactNo || "";
+
+      // Get values from supplierRequest or supplierData
+      let pickUpAddress = "";
+      let landSize = "";
+      let monthlyTeaCapacity = "";
+      if (supplierData && Object.keys(supplierData).length > 0) {
+        pickUpAddress = supplierData.pickupLocation || "";
+        landSize = supplierData.landSize || "";
+        monthlyTeaCapacity = supplierData.monthlySupply || "";
+      } else if (supplierRequest && Object.keys(supplierRequest).length > 0) {
+        pickUpAddress = supplierRequest.pickupLocation || "";
+        landSize = supplierRequest.landSize || "";
+        monthlyTeaCapacity = supplierRequest.monthlySupply || "";
+      }
+
+      setFormData({
+        name,
+        email,
+        homeAddress,
+        phoneNumber,
+        pickUpAddress,
+        landSize,
+        monthlyTeaCapacity,
+      });
+    } catch (err) {
+      console.error("Error loading profile data:", err);
+    }
+  };
+
+  const refreshData = async () => {
+    await loadProfileData();
+  };
+
+  const { refreshing, onRefresh } = usePullToRefresh(refreshData);
+
   // Add router for navigation
   const router = require("expo-router").useRouter();
 
@@ -47,53 +100,6 @@ export default function Profile() {
   };
 
   React.useEffect(() => {
-    const loadProfileData = async () => {
-      try {
-        const userDataStr = await AsyncStorage.getItem("userData");
-        const supplierRequestStr =
-          await AsyncStorage.getItem("supplierRequest");
-        const supplierDataStr = await AsyncStorage.getItem("supplierData");
-        const userData = userDataStr ? JSON.parse(userDataStr) : {};
-        const supplierRequest = supplierRequestStr
-          ? JSON.parse(supplierRequestStr)
-          : null;
-        const supplierData = supplierDataStr
-          ? JSON.parse(supplierDataStr)
-          : null;
-
-        // Get values from userData
-        const name = userData.name || "";
-        const email = userData.email || "";
-        const homeAddress = userData.address || "";
-        const phoneNumber = userData.contactNo || "";
-
-        // Get values from supplierRequest or supplierData
-        let pickUpAddress = "";
-        let landSize = "";
-        let monthlyTeaCapacity = "";
-        if (supplierData && Object.keys(supplierData).length > 0) {
-          pickUpAddress = supplierData.pickupLocation || "";
-          landSize = supplierData.landSize || "";
-          monthlyTeaCapacity = supplierData.monthlySupply || "";
-        } else if (supplierRequest && Object.keys(supplierRequest).length > 0) {
-          pickUpAddress = supplierRequest.pickupLocation || "";
-          landSize = supplierRequest.landSize || "";
-          monthlyTeaCapacity = supplierRequest.monthlySupply || "";
-        }
-
-        setFormData({
-          name,
-          email,
-          homeAddress,
-          phoneNumber,
-          pickUpAddress,
-          landSize,
-          monthlyTeaCapacity,
-        });
-      } catch (err) {
-        console.error("Error loading profile data:", err);
-      }
-    };
     loadProfileData();
   }, []);
 
@@ -118,6 +124,9 @@ export default function Profile() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
     >
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
