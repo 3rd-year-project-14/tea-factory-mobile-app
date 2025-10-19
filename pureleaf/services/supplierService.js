@@ -39,6 +39,17 @@ export const requestAdvance = (
 export const getAdvanceRequests = (supplierId) =>
   apiClient.get(`/api/advances/supplier/${supplierId}`);
 
+// Request a loan
+export const requestLoan = (supplierId, amount, months) =>
+  apiClient.post("/api/loan-requests", {
+    supplierId,
+    amount: Number(amount),
+    months: Number(months),
+  });
+
+// Get all loan requests (backend returns list)
+export const getLoanRequests = () => apiClient.get("/api/loan-requests");
+
 // Get weights summary for supplier
 export const getWeightsSummary = (supplierId, month, year) =>
   apiClient.get(

@@ -23,6 +23,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   requestAdvance,
   getAdvanceRequests,
+  requestLoan,
+  getLoanRequests,
 } from "../../../services/supplierService";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
@@ -85,6 +87,7 @@ export default function WalletPage() {
   const [loanPaymentType, setLoanPaymentType] = useState("Cheque");
   const [loanRequestLoading, setLoanRequestLoading] = useState(false);
   const [loanRequested, setLoanRequested] = useState(false);
+  const [loanData, setLoanData] = useState(null);
 
   const refreshData = useCallback(async () => {
     try {
@@ -468,13 +471,42 @@ export default function WalletPage() {
                         if (!loanAmount || !loanDuration || !loanPaymentType) return;
                         setLoanRequestLoading(true);
                         try {
-                          // Simulate request / call API here if needed
-                          setTimeout(() => {
-                            setLoanRequested(true);
+                          // determine months from duration string like "3 Month"
+                          const months = Number(loanDuration.split(" ")[0]) || 3;
+
+                          // get supplierId from AsyncStorage
+                          const supplierDataStr = await AsyncStorage.getItem("supplierData");
+                          let supplierId = null;
+                          if (supplierDataStr) {
+                            const supplierData = JSON.parse(supplierDataStr);
+                            if (Array.isArray(supplierData) && supplierData.length > 0) {
+                              supplierId = supplierData[0].supplierId;
+                            } else if (supplierData && supplierData.supplierId) {
+                              supplierId = supplierData.supplierId;
+                            }
+                          }
+                          if (!supplierId) {
                             setLoanRequestLoading(false);
-                            setShowRequestLoanModal(false);
-                          }, 700);
-                        } catch (_err) {
+                            return;
+                          }
+
+                          const response = await requestLoan(supplierId, loanAmount, months);
+                          const created = response.data;
+                          // map backend response into our UI state
+                          setLoanData({
+                            reqId: created.reqId || created.id || created.requestId,
+                            supplierId: created.supplierId || (created.supplier && created.supplier.supplierId),
+                            amount: created.amount || created.requestedAmount,
+                            months: created.months || months,
+                            date: created.date || created.createdAt || created.requestedDate,
+                            status: created.status || "PENDING",
+                            paymentType: loanPaymentType,
+                          });
+                          setLoanRequested(true);
+                          setShowRequestLoanModal(false);
+                        } catch (err) {
+                          console.log("Loan request error", err?.response?.data || err.message || err);
+                        } finally {
                           setLoanRequestLoading(false);
                         }
                       }}
@@ -512,16 +544,20 @@ export default function WalletPage() {
           <View style={styles.loanCard}>
             <Text style={styles.loanTitle}>Loan</Text>
             <Text style={styles.loanPending}>Pending amount to pay</Text>
-            <Text style={styles.loanAmount}>Rs 50,000.00</Text>
+            <Text style={styles.loanAmount}>
+              Rs {loanData ? Number(loanData.amount).toLocaleString() : "0.00"}
+            </Text>
             <View style={styles.loanRow}>
               <Text style={styles.loanPending}>Monthly payment</Text>
-              <Text style={styles.loanMonthAmount}>Rs 18,000.00</Text>
+              <Text style={styles.loanMonthAmount}>
+                Rs {loanData ? (Number(loanData.amount) / (loanData.months || 1)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "0.00"}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.loanBtn}
               onPress={() => setShowLoanDetails(true)}
             >
-              <Text style={styles.loanBtnText}>View</Text>
+              <Text style={styles.loanBtnText}>{loanData ? 'View' : 'Details'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -578,25 +614,31 @@ export default function WalletPage() {
                 <Text style={styles.loanPopupTitle}>Loan Details</Text>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Loan Amount:</Text>
-                  <Text style={styles.loanPopupValue}>Rs 50,000.00</Text>
+                  <Text style={styles.loanPopupValue}>
+                    Rs {loanData ? Number(loanData.amount).toLocaleString() : "-"}
+                  </Text>
                 </View>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>
                     Monthly Installment:
                   </Text>
-                  <Text style={styles.loanPopupValue}>Rs 18,000.00</Text>
+                  <Text style={styles.loanPopupValue}>
+                    Rs {loanData ? (Number(loanData.amount) / (loanData.months || 1)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
+                  </Text>
                 </View>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Interest Rate:</Text>
-                  <Text style={styles.loanPopupValue}>12%</Text>
+                  <Text style={styles.loanPopupValue}>{loanData?.interestRate ? `${loanData.interestRate}%` : "-"}</Text>
                 </View>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Amount Payable:</Text>
-                  <Text style={styles.loanPopupValue}>Rs 54,000.00</Text>
+                  <Text style={styles.loanPopupValue}>
+                    Rs {loanData && loanData.interestRate ? (Number(loanData.amount) * (1 + Number(loanData.interestRate) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
+                  </Text>
                 </View>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Payment Type:</Text>
-                  <Text style={styles.loanPopupValue}>{paymentType}</Text>
+                  <Text style={styles.loanPopupValue}>{loanData?.paymentType || paymentType}</Text>
                 </View>
               </View>
             </TouchableWithoutFeedback>
