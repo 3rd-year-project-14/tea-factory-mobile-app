@@ -38,3 +38,15 @@ export const requestAdvance = (
 // Get advance requests for a supplier
 export const getAdvanceRequests = (supplierId) =>
   apiClient.get(`/api/advances/supplier/${supplierId}`);
+
+// Get weights summary for supplier
+export const getWeightsSummary = (supplierId, month, year) =>
+  apiClient.get(
+    `/api/supplierMobileApp/weights/summary?supplierId=${supplierId}&month=${month + 1}&year=${year}`
+  );
+
+// Get daily summary for supplier
+export const getDailySummary = (supplierId, month, year) =>
+  apiClient.get(
+    `/api/factory-dashboard/supplier/${supplierId}/daily-summary?month=${month + 1}&year=${year}`
+  );
