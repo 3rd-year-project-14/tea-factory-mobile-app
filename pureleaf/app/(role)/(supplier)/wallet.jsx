@@ -78,6 +78,13 @@ export default function WalletPage() {
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [slideConfirmed, setSlideConfirmed] = useState(false);
   const [showLoanDetails, setShowLoanDetails] = useState(false);
+  // Request Loan modal state
+  const [showRequestLoanModal, setShowRequestLoanModal] = useState(false);
+  const [loanAmount, setLoanAmount] = useState("");
+  const [loanDuration, setLoanDuration] = useState("3 Month");
+  const [loanPaymentType, setLoanPaymentType] = useState("Cheque");
+  const [loanRequestLoading, setLoanRequestLoading] = useState(false);
+  const [loanRequested, setLoanRequested] = useState(false);
 
   const refreshData = useCallback(async () => {
     try {
@@ -169,18 +176,22 @@ export default function WalletPage() {
               <Text style={{ fontWeight: "bold" }}>Rs </Text>
               <Text style={styles.amountValue}>50,000.00</Text>
             </Text>
-            <Text style={styles.paymentType}>
-              Payment type :{" "}
-              <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
-            </Text>
+            <TouchableOpacity
+              onPress={() => setShowSelector(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.paymentType}>
+                Payment type :{" "}
+                <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
+              </Text>
+            </TouchableOpacity>
             <View style={styles.walletBtnRow}>
               <TouchableOpacity
-                style={styles.walletBtn}
-                onPress={() => setShowSelector(true)}
+                style={[styles.walletBtn, loanRequested && { backgroundColor: '#999' }]}
+                onPress={() => setShowRequestLoanModal(true)}
+                disabled={loanRequested}
               >
-                <Text style={styles.walletBtnText}>
-                  Change{"\n"}Payment type
-                </Text>
+                <Text style={styles.walletBtnText}>Request{"\n"}Loan</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.walletBtn}
@@ -378,6 +389,97 @@ export default function WalletPage() {
                       <Text style={styles.advanceRequestBtnText}>
                         {advanceLoading ? "Requesting..." : "Request"}
                       </Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
+          {/* === REQUEST LOAN MODAL === */}
+          <Modal
+            visible={showRequestLoanModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowRequestLoanModal(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowRequestLoanModal(false)}>
+              <View style={styles.loanModalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.advancePopup}>
+                    <Text style={styles.loanPopupTitle}>Request Loan</Text>
+
+                    <Text style={styles.advanceLabel}>Amount *</Text>
+                    <TextInput
+                      style={styles.advanceInput}
+                      keyboardType="numeric"
+                      placeholder="Enter amount"
+                      placeholderTextColor="#999"
+                      maxLength={12}
+                      value={loanAmount}
+                      onChangeText={(v) => { if (/^\d*$/.test(v)) setLoanAmount(v); }}
+                    />
+
+                    <Text style={styles.advanceLabel}>Duration *</Text>
+                    <View style={styles.advanceDropdown}>
+                      {["3 Month", "6 Month", "12 Month"].map((d) => (
+                        <TouchableOpacity
+                          key={d}
+                          onPress={() => setLoanDuration(d)}
+                          style={[
+                            styles.advanceDropdownItem,
+                            loanDuration === d && styles.advanceDropdownItemSelected,
+                          ]}
+                        >
+                          <Text style={[
+                            styles.advanceDropdownText,
+                            loanDuration === d && styles.advanceDropdownTextSelected,
+                          ]}>{d}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={styles.advanceLabel}>Payment Type *</Text>
+                    <View style={styles.advanceDropdown}>
+                      {["Cheque", "Cash", "Bank"].map((t) => (
+                        <TouchableOpacity
+                          key={t}
+                          onPress={() => setLoanPaymentType(t)}
+                          style={[
+                            styles.advanceDropdownItem,
+                            loanPaymentType === t && styles.advanceDropdownItemSelected,
+                          ]}
+                        >
+                          <Text style={[
+                            styles.advanceDropdownText,
+                            loanPaymentType === t && styles.advanceDropdownTextSelected,
+                          ]}>{t}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.advanceRequestBtn,
+                        (!(loanAmount && loanDuration && loanPaymentType) || loanRequestLoading) && { backgroundColor: '#ccc' },
+                      ]}
+                      disabled={!(loanAmount && loanDuration && loanPaymentType) || loanRequestLoading}
+                      onPress={async () => {
+                        if (!loanAmount || !loanDuration || !loanPaymentType) return;
+                        setLoanRequestLoading(true);
+                        try {
+                          // Simulate request / call API here if needed
+                          setTimeout(() => {
+                            setLoanRequested(true);
+                            setLoanRequestLoading(false);
+                            setShowRequestLoanModal(false);
+                          }, 700);
+                        } catch (_err) {
+                          setLoanRequestLoading(false);
+                        }
+                      }}
+                    >
+                      <Text style={styles.advanceRequestBtnText}>{loanRequestLoading ? 'Requesting...' : 'Request Loan'}</Text>
                     </TouchableOpacity>
                   </View>
                 </TouchableWithoutFeedback>
