@@ -13,6 +13,7 @@ import {
   TextInput,
   Pressable,
   AppState,
+  RefreshControl,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -28,6 +29,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
 // 6 Sri Lankan supplier samples
 const suppliers = [
@@ -185,103 +187,112 @@ export default function SupplierHome() {
     return () => clearInterval(timer);
   }, [router]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      const loadUserAndCheckIn = async () => {
-        try {
-          // Load user name
-          const userDataStr = await AsyncStorage.getItem("userData");
-          if (userDataStr) {
-            const userData = JSON.parse(userDataStr);
-            setUserName(userData.name || "");
-          }
-          // Load driverId
-          const driverDataStr = await AsyncStorage.getItem("driverData");
-          let _driverId = null;
-          if (driverDataStr) {
-            const driverData = JSON.parse(driverDataStr);
-            _driverId = driverData.id || driverData.driverId;
-            setDriverId(_driverId);
-          }
-          console.log("Driver ID:", _driverId);
+  const loadUserAndCheckIn = React.useCallback(async () => {
+    try {
+      // Load user name
+      const userDataStr = await AsyncStorage.getItem("userData");
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        setUserName(userData.name || "");
+      }
+      // Load driverId
+      const driverDataStr = await AsyncStorage.getItem("driverData");
+      let _driverId = null;
+      if (driverDataStr) {
+        const driverData = JSON.parse(driverDataStr);
+        _driverId = driverData.id || driverData.driverId;
+        setDriverId(_driverId);
+      }
+      console.log("Driver ID:", _driverId);
 
-          // Check today's trip
-          if (_driverId) {
-            try {
-              const todayTripRes = await getTodayTrip(_driverId);
-              if (todayTripRes && todayTripRes.tripId) {
-                setTodayTripId(todayTripRes.tripId);
-                setTodayTripStatus(todayTripRes.status);
-                await AsyncStorage.setItem(
-                  "tripId",
-                  todayTripRes.tripId.toString()
-                );
-                // Only go to trip if status is pending
-                if (todayTripRes.status === "pending") {
-                  router.push("/(role)/(driver)/(nontabs)/trip");
-                }
-              } else {
-                setTodayTripId(null);
-                setTodayTripStatus(null);
-              }
-            } catch {
-              setTodayTripId(null);
-              setTodayTripStatus(null);
-            }
-          }
-          // Check today's driver-availability row
-          if (_driverId) {
-            try {
-              const res = await getTodayDriverAvailability(_driverId);
-              if (!res || Object.keys(res).length === 0) {
-                // No row for today: show check-in button
-                setIsCheckedInToday(false);
-                setPageState("main");
-                setDriverAvailabilityId(null);
-              } else if (res.isAvailable) {
-                // Checked in: show checked-in card
-                setIsCheckedInToday(true);
-                setPageState("checkedIn");
-                setDriverAvailabilityId(res.id);
-              } else {
-                // Not collecting: show not-collecting card with reason
-                setIsCheckedInToday(false);
-                setNotCollectingReason(res.reason || "");
-                setPageState("notCollectingSet");
-                setDriverAvailabilityId(res.id);
-              }
-            } catch {
-              setIsCheckedInToday(false);
-              setPageState("main");
+      // Check today's trip
+      if (_driverId) {
+        try {
+          const todayTripRes = await getTodayTrip(_driverId);
+          if (todayTripRes && todayTripRes.tripId) {
+            setTodayTripId(todayTripRes.tripId);
+            setTodayTripStatus(todayTripRes.status);
+            await AsyncStorage.setItem(
+              "tripId",
+              todayTripRes.tripId.toString()
+            );
+            // Only go to trip if status is pending
+            if (todayTripRes.status === "pending") {
+              router.push("/(role)/(driver)/(nontabs)/trip");
             }
           } else {
-            setIsCheckedInToday(false);
-            setPageState("main");
+            setTodayTripId(null);
+            setTodayTripStatus(null);
           }
         } catch {
-          setUserName("");
+          setTodayTripId(null);
+          setTodayTripStatus(null);
+        }
+      }
+      // Check today's driver-availability row
+      if (_driverId) {
+        try {
+          const res = await getTodayDriverAvailability(_driverId);
+          if (!res || Object.keys(res).length === 0) {
+            // No row for today: show check-in button
+            setIsCheckedInToday(false);
+            setPageState("main");
+            setDriverAvailabilityId(null);
+          } else if (res.isAvailable) {
+            // Checked in: show checked-in card
+            setIsCheckedInToday(true);
+            setPageState("checkedIn");
+            setDriverAvailabilityId(res.id);
+          } else {
+            // Not collecting: show not-collecting card with reason
+            setIsCheckedInToday(false);
+            setNotCollectingReason(res.reason || "");
+            setPageState("notCollectingSet");
+            setDriverAvailabilityId(res.id);
+          }
+        } catch {
           setIsCheckedInToday(false);
           setPageState("main");
         }
-      };
+      } else {
+        setIsCheckedInToday(false);
+        setPageState("main");
+      }
+    } catch {
+      setUserName("");
+      setIsCheckedInToday(false);
+      setPageState("main");
+    }
+  }, [router]);
+
+  const fetchTodaySuppliers = React.useCallback(async () => {
+    if (isCheckedInToday === true && driverId) {
+      try {
+        const res = await getTodayTeaSupplyRequests(driverId);
+        setTodayRequests(res.requests || []);
+      } catch (_error) {
+        setTodayRequests([]);
+      }
+    }
+  }, [isCheckedInToday, driverId]);
+
+  const refreshData = React.useCallback(async () => {
+    await loadUserAndCheckIn();
+    await fetchTodaySuppliers();
+  }, [loadUserAndCheckIn, fetchTodaySuppliers]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(refreshData);
+
+  useFocusEffect(
+    React.useCallback(() => {
       loadUserAndCheckIn();
-    }, [router])
+    }, [loadUserAndCheckIn])
   );
 
   // Fetch today's suppliers when checked in
   useEffect(() => {
-    const fetchTodaySuppliers = async () => {
-      if (isCheckedInToday === true && driverId) {
-        try {
-          const res = await getTodayTeaSupplyRequests(driverId);
-          setTodayRequests(res.requests || []);
-        } catch (_error) {
-          setTodayRequests([]);
-        }
-      }
-    };
     fetchTodaySuppliers();
-  }, [isCheckedInToday, driverId]);
+  }, [fetchTodaySuppliers]);
 
   const filteredSuppliers = suppliers.filter((s) =>
     s.name.toLowerCase().includes(searchText.toLowerCase())
@@ -424,7 +435,12 @@ export default function SupplierHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f8f4" }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 80 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Hero with overlayed greeting */}
         <View style={styles.heroCard}>
           <ImageBackground
