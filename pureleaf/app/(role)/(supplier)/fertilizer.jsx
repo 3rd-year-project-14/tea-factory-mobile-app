@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,58 +8,28 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import RBSheet from "react-native-raw-bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import SlideToConfirm from "rn-slide-to-confirm";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
+import apiClient from "../../../services/apiClient";
 
 
-const fertilizerTypes = [
-  {
-    id: 1,
-    name: "Urea",
-    image: require("../../../assets/images/fert1.jpg"),
-    price: 1000,
-    unit: "50kg",
-  },
-  {
-    id: 2,
-    name: "Ammonium sulfate",
-    image: require("../../../assets/images/fert2.jpg"),
-    price: 1200,
-    unit: "50kg",
-  },
-  {
-    id: 3,
-    name: "Urea",
-    image: require("../../../assets/images/fert1.jpg"),
-    price: 1000,
-    unit: "50kg",
-  },
-  {
-    id: 4,
-    name: "Ammonium sulfate",
-    image: require("../../../assets/images/fert2.jpg"),
-    price: 1200,
-    unit: "50kg",
-  },
-  {
-    id: 5,
-    name: "Urea",
-    image: require("../../../assets/images/fert1.jpg"),
-    price: 1000,
-    unit: "50kg",
-  },
-  {
-    id: 6,
-    name: "Ammonium sulfate",
-    image: require("../../../assets/images/fert2.jpg"),
-    price: 1200,
-    unit: "50kg",
-  },
-];
+// fertilizerTypes will be loaded from backend (FertilizerStockDisplayDTO)
+const defaultImage1 = require("../../../assets/images/fert1.jpg");
+const defaultImage2 = require("../../../assets/images/fert2.jpg");
+
+function getImageForProduct(name) {
+  if (!name) return defaultImage1;
+  const n = name.toLowerCase();
+  if (n.includes("urea")) return defaultImage1;
+  if (n.includes("ammonium")) return defaultImage2;
+  return defaultImage1;
+}
 
 export default function FertilizerPage() {
   const infoSheetRef = useRef();
@@ -69,6 +39,9 @@ export default function FertilizerPage() {
 
   const [fertilizerState, setFertilizerState] = useState('none'); // 'none', 'placed', 'driver', 'pending'
   const [cartItems, setCartItems] = useState([]);
+  const [fertilizerTypes, setFertilizerTypes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   // selectionMode: 'create' when making a new request, 'edit' when editing an existing request
   const [selectionMode, setSelectionMode] = useState('create');
   // working cart that is edited inside the selection popup; changes are committed to cartItems only when user confirms
@@ -78,11 +51,40 @@ export default function FertilizerPage() {
   const [confirming, setConfirming] = useState(false);
 
   const refreshData = async () => {
-    // Add refresh logic here if data is fetched from API
-    // For now, it's static data
+  await fetchFertilizerTypes();
   };
 
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
+
+  const fetchFertilizerTypes = async (supplierId = null) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const params = {};
+      if (supplierId) params.supplierId = supplierId;
+      const resp = await apiClient.get('/api/fertilizer-stocks/display', { params });
+      // Expected DTO: { fertilizerStockId, productName, weightPerQuantity, sellPrice }
+      const data = Array.isArray(resp.data) ? resp.data : [];
+      // Map to local shape used by UI (id, name, price, unit)
+      const mapped = data.map(d => ({
+        id: d.fertilizerStockId,
+        name: d.productName,
+        image: getImageForProduct(d.productName),
+        price: d.sellPrice ?? 0,
+        unit: d.weightPerQuantity ? `${d.weightPerQuantity}kg` : "",
+      }));
+      setFertilizerTypes(mapped);
+    } catch (err) {
+      console.error('Failed to fetch fertilizer types', err);
+      setError('Failed to load fertilizers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFertilizerTypes();
+  }, []);
   // Open the request modal
   const openRequestModal = () => {
     requestSheetRef.current.open();
@@ -145,7 +147,16 @@ export default function FertilizerPage() {
         {/* Fertilizer Types Slider (MAIN PAGE) */}
         <View style={styles.sliderRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {fertilizerTypes.map((item, idx) => (
+            {loading ? (
+              <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#183d2b" />
+              </View>
+            ) : error ? (
+              <View style={{ padding: 12 }}>
+                <Text style={{ color: '#900' }}>{error}</Text>
+              </View>
+            ) : (
+              fertilizerTypes.map((item, idx) => (
               <TouchableOpacity
                 key={idx}
                 style={styles.fertilizerCard}
@@ -161,7 +172,8 @@ export default function FertilizerPage() {
                   </Text>
                 </View>
               </TouchableOpacity>
-            ))}
+              ))
+            )}
           </ScrollView>
         </View>
 
@@ -327,7 +339,16 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
           <Text style={[styles.infoTitle, { alignSelf: 'center', marginBottom: 8 }]}>Request Fertilizers</Text>
           <Text style={{ alignSelf: 'center', marginBottom: 12, color: '#444' }}>Add fertilizers and quantities to the cart</Text>
 
-    {fertilizerTypes.map((item) => (
+    {loading ? (
+      <View style={{ padding: 12 }}>
+        <ActivityIndicator size="small" color="#183d2b" />
+      </View>
+    ) : error ? (
+      <View style={{ padding: 12 }}>
+        <Text style={{ color: '#900' }}>{error}</Text>
+      </View>
+    ) : (
+      fertilizerTypes.map((item) => (
             <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: '#fff', padding: 8, borderRadius: 12 }}>
               <Image source={item.image} style={{ width: 80, height: 60, borderRadius: 8 }} />
               <View style={{ flex: 1, marginLeft: 10 }}>
@@ -343,7 +364,8 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
+          ))
+    )}
 
           {/* Cart table */}
           <View style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 12, padding: 8 }}>
@@ -389,24 +411,17 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
       </RBSheet>
 
       {/* Fertilizer Request State Modal */}
+      {/* Fertilizer Request State Modal */}
       <RBSheet
         ref={requestSheetRef}
         closeOnDragDown={true}
         closeOnPressMask={true}
         customStyles={{
-          wrapper: { backgroundColor: "rgba(0,0,0,0.4)" },
-          draggableIcon: { backgroundColor: "#bbb" },
-          container: {
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            padding: 24,
-            minHeight: 220,
-            alignItems: "center",
-            textAlign: "center",
-            justifyContent: "center",
-          },
+          wrapper: { backgroundColor: 'rgba(0,0,0,0.4)' },
+          draggableIcon: { backgroundColor: '#bbb' },
+          container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, minHeight: 220, alignItems:'center',textAlign:'center',justifyContent:'center' },
         }}
-        height={fertilizerState === "driver" ? 340 : 260}
+        height={fertilizerState === 'driver' ? 340 : 260}
       >
         <ScrollView
     showsVerticalScrollIndicator={true}
@@ -416,206 +431,96 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
           <View>
             <Text style={styles.reqCardLabel}>Fertilizer request</Text>
             <Text style={styles.reqCardDate}>Request placed</Text>
-            {/* Show cart summary */}
-            <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 12, marginTop: 12 }}>
-              {cartItems.length === 0 ? (
-                <Text style={{ color: '#666' }}>No items in request</Text>
-              ) : (
-                cartItems.map((c, i) => (
-                  <View key={c.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-                    <Text style={{ fontWeight: '700' }}>{String(i + 1).padStart(2, '0')}  {c.name} {c.unit}</Text>
-                    <Text style={{ fontWeight: '700' }}>{c.qty} x Rs.{c.price}</Text>
-                  </View>
-                ))
-              )}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700' }}>Sub Total</Text>
-                <Text style={{ fontSize: 16, fontWeight: '700' }}>Rs. {cartItems.reduce((s, i) => s + i.total, 0).toFixed(2)}</Text>
-              </View>
-            </View>
             <View style={{ flexDirection: 'row', marginTop: 16 }}>
               <TouchableOpacity
                 style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
-                  onPress={() => {
-                    // Close the request sheet and open the selection sheet in edit mode
-                    requestSheetRef.current.close();
-                    setTimeout(() => openSelectionModal('edit'), 260);
-                  }}
-              >
-                <Text style={styles.sheetBtnText1}>
-                  Simulate Driver On The Way
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {fertilizerState === "driver" && (
-            <View>
-              <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-              <Text style={styles.reqCardDate}>Driver on the way</Text>
-              <Text style={styles.reqCardDate}>
-                Arriving at <Text style={{ fontWeight: "bold" }}>5:45PM</Text>
-              </Text>
-              <View
-                style={{
-                  backgroundColor: "#183d2b",
-                  borderTopLeftRadius: 30,
-                  borderBottomLeftRadius: 30,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  padding: 16,
-                  marginVertical: 10,
-                  width: 300,
+                onPress={() => {
+                  requestSheetRef.current.close();
+                  setTimeout(() => {
+                    router.replace('/(role)/(nontabsmanager)/order');
+                  }, 300);
                 }}
               >
-                <View
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 30,
-                    backgroundColor: "#eee",
-                    marginRight: 16,
-                    overflow: "hidden",
-                  }}
-                >
-                  <Image
-                    source={require("../../../assets/images/driver.jpg")}
-                    style={{ width: 60, height: 60, borderRadius: 30 }}
-                  />
-                </View>
-                <View>
-                  <Text
-                    style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}
-                  >
-                    Saman
-                  </Text>
-                  <Text style={{ color: "#fff", fontSize: 14 }}>
-                    is on the way
-                  </Text>
-                  <Text style={{ color: "#fff", fontSize: 13 }}>
-                    Vehicle :{" "}
-                    <Text style={{ fontWeight: "bold" }}>LN 2535</Text>
-                  </Text>
-                  <Text style={{ color: "#fff", fontSize: 13, opacity: 0.8 }}>
-                    Isuzu NKR66E
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.sheetBtn,
-                  {
-                    backgroundColor: "#183d2b",
-                    marginTop: 0,
-                    width: 120,
-                    alignSelf: "center",
-                  },
-                ]}
-                onPress={() => {
-                  // Simulate phone call
-                }}
-              >
-                <Text
-                  style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
-                >
-                  Call
-                </Text>
+                <Text style={styles.sheetBtnText}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.sheetBtn,
-                  { backgroundColor: "#fff", marginTop: 18 },
-                ]}
+                style={[styles.sheetBtn, { backgroundColor: '#590804' }]}
                 onPress={() => {
-                  setFertilizerState("pending");
+                  setFertilizerState('none');
                   requestSheetRef.current.close();
                 }}
               >
-                <Text style={styles.sheetBtnText1}>
-                  Simulate Delivery Pending
-                </Text>
+                <Text style={styles.sheetBtnText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-          )}
+            <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
+              onPress={() => {
+                setFertilizerState('driver');
+                requestSheetRef.current.close();
+              }}
+            >
+              <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-          {fertilizerState === "pending" && (
-            <View>
-              <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-              <Text style={styles.reqCardDate}>Confirmation pending</Text>
-              <View
-                style={{
-                  backgroundColor: "#183d2b",
-                  borderRadius: 16,
-                  padding: 16,
-                  marginVertical: 18,
-                }}
-              >
-                <Text
-                  style={{
-                    color: "#fff",
-                    fontSize: 16,
-                    fontWeight: "700",
-                    marginBottom: 8,
-                  }}
-                >
-                  Collect your Fertilizers
-                </Text>
-                <Text style={{ color: "#fff", fontSize: 14 }}>
-                  Request ID: 041
-                </Text>
-                <Text style={{ color: "#fff", fontSize: 14 }}>Urea : 50kg</Text>
-                <Text style={{ color: "#fff", fontSize: 14 }}>
-                  Ammonium sulfate : 50kg
-                </Text>
+        {fertilizerState === 'driver' && (
+          <View>
+            <Text style={styles.reqCardLabel}>Fertilizer request</Text>
+            <Text style={styles.reqCardDate}>Driver on the way</Text>
+            <Text style={styles.reqCardDate}>Arriving at <Text style={{fontWeight:'bold'}}>5:45PM</Text></Text>
+            <View style={{ backgroundColor:'#183d2b',borderTopLeftRadius:30, borderBottomLeftRadius:30,flexDirection:'row', alignItems:'center', padding:16, marginVertical:10,width:300 }}>
+              <View style={{ width:60, height:60, borderRadius:30, backgroundColor:'#eee', marginRight:16, overflow:'hidden' }}>
+                <Image source={require('../../../assets/images/driver.jpg')} style={{ width: 60, height: 60, borderRadius: 30 }} />
               </View>
-              <View style={{ alignItems: "center", marginTop: 18 }}>
-                <SlideToConfirm
-                  unconfimredTipText="Slide to confirm Delivery"
-                  confirmedTipText="Confirmed"
-                  state={confirming}
-                  onSlideConfirmed={() => {
-                    setConfirming(true);
-                    setTimeout(() => {
-                      setFertilizerState("none");
-                      requestSheetRef.current.close();
-                      setConfirming(false);
-                    }, 1000);
-                  }}
-                  sliderStyle={{
-                    width: 300,
-                    height: 60,
-                    borderRadius: 30,
-                    backgroundColor: confirming ? "#6fcf97" : "#183d2b",
-                    // Remove alignItems: 'center' here!
-                    justifyContent: "center", // This is fine for vertical centering
-                  }}
-                  unconfirmedTipTextStyle={{
-                    color: "#fff",
-                    fontSize: 18,
-                    textAlign: "center",
-                    lineHeight: 60,
-                    width: "100%", // Ensures text is centered across the slider
-                    position: "absolute", // Optional: ensures text overlays the slider
-                    left: 0,
-                  }}
-                  confirmedTipTextStyle={{
-                    color: "#fff",
-                    fontSize: 18,
-                    textAlign: "center",
-                    lineHeight: 60,
-                    width: "100%",
-                    position: "absolute",
-                    left: 0,
-                  }}
-                  thumbStyle={{
-                    backgroundColor: "#fff",
-                    marginLeft: 10,
-                    // No margin or alignment here!
-                  }}
-                />
+              <View>
+                <Text style={{ color:'#fff', fontSize:18, fontWeight:'700' }}>Saman</Text>
+                <Text style={{ color:'#fff', fontSize:14 }}>is on the way</Text>
+                <Text style={{ color:'#fff', fontSize:13 }}>Vehicle : <Text style={{ fontWeight:'bold' }}>LN 2535</Text></Text>
+                <Text style={{ color:'#fff', fontSize:13, opacity:0.8 }}>Isuzu NKR66E</Text>
               </View>
             </View>
-          )}
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor:'#183d2b', marginTop:0, width:120, alignSelf:'center' }]} onPress={() => { /* Simulate phone call */ }}>
+              <Text style={{ color:'#fff', fontSize:16, fontWeight:'700' }}>Call</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor:'#fff', marginTop:18 }]} onPress={() => { setFertilizerState('pending'); requestSheetRef.current.close(); }}>
+              <Text style={styles.sheetBtnText1}>Simulate Delivery Pending</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {fertilizerState === 'pending' && (
+          <View>
+            <Text style={styles.reqCardLabel}>Fertilizer request</Text>
+            <Text style={styles.reqCardDate}>Confirmation pending</Text>
+            <View style={{ backgroundColor:'#183d2b', borderRadius:16, padding:16, marginVertical:18 }}>
+              <Text style={{ color:'#fff', fontSize:16, fontWeight:'700', marginBottom:8 }}>Collect your Fertilizers</Text>
+              <Text style={{ color:'#fff', fontSize:14 }}>Request ID: 041</Text>
+              <Text style={{ color:'#fff', fontSize:14 }}>Urea : 50kg</Text>
+              <Text style={{ color:'#fff', fontSize:14 }}>Ammonium sulfate : 50kg</Text>
+            </View>
+            <View style={{ alignItems:'center', marginTop:18 }}>
+              <SlideToConfirm
+                unconfimredTipText="Slide to confirm Delivery"
+                confirmedTipText="Confirmed"
+                state={confirming}
+                onSlideConfirmed={() => {
+                  setConfirming(true);
+                  setTimeout(() => {
+                    setFertilizerState('none');
+                    requestSheetRef.current.close();
+                    setConfirming(false);
+                  }, 1000);
+                }}
+                sliderStyle={{ width:300, height:60, borderRadius:30, backgroundColor: confirming ? '#6fcf97' : '#183d2b', justifyContent:'center' }}
+                unconfirmedTipTextStyle={{ color:'#fff', fontSize:18, textAlign:'center', lineHeight:60, width:'100%', position:'absolute', left:0 }}
+                confirmedTipTextStyle={{ color:'#fff', fontSize:18, textAlign:'center', lineHeight:60, width:'100%', position:'absolute', left:0 }}
+                thumbStyle={{ backgroundColor:'#fff', marginLeft:10 }}
+              />
+            </View>
+          </View>
+        )}
         </ScrollView>
       </RBSheet>
     </>
