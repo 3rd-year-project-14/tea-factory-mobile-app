@@ -13,10 +13,9 @@ import {
 import { PieChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
 import { usePullToRefresh } from "../../../../hooks/usePullToRefresh";
-import {
-  getWeightsSummary,
-  getDailySummary,
-} from "../../../../services/supplierService";
+import { getDailySummary } from "../../../../services/supplierService";
+import { getWeightsSummary } from "../../../../services/driverService";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -54,18 +53,38 @@ export default function IncomeScreen() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [summaryData, setSummaryData] = useState(null);
   const [dailyData, setDailyData] = useState([]);
+  const [driverId, setDriverId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const refreshData = async () => {
     setLoading(true);
     const actualMonth = (currentMonthIndex + selectedMonth) % 12;
     try {
+      // ensure we have driverId
+      let _driverId = driverId;
+      if (!_driverId) {
+        const driverDataStr = await AsyncStorage.getItem('driverData');
+        if (driverDataStr) {
+          try {
+            const driverData = JSON.parse(driverDataStr);
+            _driverId = driverData.id || driverData.driverId || driverData._id || _driverId;
+            setDriverId(_driverId);
+          } catch (e) {}
+        }
+      }
+
+      if (!_driverId) {
+        throw new Error('Driver ID not found in local storage');
+      }
+
       const [summaryResponse, dailyResponse] = await Promise.all([
-        getWeightsSummary(15, actualMonth, selectedYear),
-        getDailySummary(15, actualMonth, selectedYear),
+        getWeightsSummary(_driverId, actualMonth, selectedYear),
+        getDailySummary(_driverId, actualMonth, selectedYear),
       ]);
-      setSummaryData(summaryResponse.data);
-      setDailyData(dailyResponse.data);
+
+      // supplier service returns axios response; driverService.getWeightsSummary returns axios promise too
+      setSummaryData(summaryResponse.data || summaryResponse);
+      setDailyData(dailyResponse.data || dailyResponse);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -237,13 +256,13 @@ export default function IncomeScreen() {
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Ionicons name="cube-outline" size={26} color="#263A29" />
-            <Text style={styles.summaryLabel}>Total Supplied</Text>
-            <Text style={styles.summaryValue}>{totalKg} kg</Text>
+            <Text style={styles.summaryLabel}>Total Gross Weight</Text>
+            <Text style={styles.summaryValue}>{totalGross} kg</Text>
           </View>
           <View style={styles.summaryCard}>
             <Ionicons name="wallet-outline" size={26} color="#263A29" />
-            <Text style={styles.summaryLabel}>Final Weight</Text>
-            <Text style={styles.summaryValue}>{totalIncome} kg</Text>
+            <Text style={styles.summaryLabel}>Total Net Weight</Text>
+            <Text style={styles.summaryValue}>{totalNet} kg</Text>
           </View>
         </View>
 

@@ -610,13 +610,19 @@ export default function SupplierHome({ navigation }) {
         </View>
 
         {/* Collect your Cash Card */}
-        <View style={styles.cashCard}>
+        <TouchableOpacity
+          style={styles.cashCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            router.push("/(role)/(supplier)/wallet?openCollect=true");
+          }}
+        >
           <View>
             <Text style={styles.cashCardLabel}>Collect your Cash</Text>
             <Text style={styles.cashCardDate}>Date : 25/06/25</Text>
           </View>
           <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
-        </View>
+        </TouchableOpacity>
 
         {/* This month's Supply Card */}
         <TouchableOpacity

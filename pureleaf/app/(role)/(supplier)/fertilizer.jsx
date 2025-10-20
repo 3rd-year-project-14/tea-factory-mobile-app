@@ -273,11 +273,11 @@ export default function FertilizerPage() {
             onPress={openRequestModal}
           >
             <Text style={styles.reqCardLabel}>Fertilizer request placed</Text>
-            <Text style={styles.reqCardDate}>
-
+            <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>
               {fertilizerState === 'placed' && 'Tap to view or cancel'}
               {fertilizerState === 'driver' && 'Driver on the way'}
               {fertilizerState === 'pending' && 'Delivery confirmation pending'}
+              {fertilizerState === 'rejected' && 'Request rejected'}
             </Text>
             {/* Small cart preview */}
             <View style={{ backgroundColor: '#fff', padding: 8, borderRadius: 8, marginTop: 10 }}>
@@ -496,10 +496,10 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
     showsVerticalScrollIndicator={true}
     contentContainerStyle={{ paddingBottom: 24 }}
   >
-        {fertilizerState === 'placed' && (
+    {fertilizerState === 'placed' && (
           <View>
             <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-            <Text style={styles.reqCardDate}>Request placed</Text>
+      <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Request placed</Text>
             <View style={{ flexDirection: 'row', marginTop: 16 }}>
               <TouchableOpacity
                 style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
@@ -534,10 +534,10 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
           </View>
         )}
 
-        {fertilizerState === 'driver' && (
+    {fertilizerState === 'driver' && (
           <View>
             <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-            <Text style={styles.reqCardDate}>Driver on the way</Text>
+      <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Driver on the way</Text>
             <Text style={styles.reqCardDate}>Arriving at <Text style={{fontWeight:'bold'}}>5:45PM</Text></Text>
             <View style={{ backgroundColor:'#183d2b',borderTopLeftRadius:30, borderBottomLeftRadius:30,flexDirection:'row', alignItems:'center', padding:16, marginVertical:10,width:300 }}>
               <View style={{ width:60, height:60, borderRadius:30, backgroundColor:'#eee', marginRight:16, overflow:'hidden' }}>
@@ -559,10 +559,10 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
           </View>
         )}
 
-        {fertilizerState === 'pending' && (
+    {fertilizerState === 'pending' && (
           <View>
             <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-            <Text style={styles.reqCardDate}>Confirmation pending</Text>
+      <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Confirmation pending</Text>
             <View style={{ backgroundColor:'#183d2b', borderRadius:16, padding:16, marginVertical:18 }}>
               <Text style={{ color:'#fff', fontSize:16, fontWeight:'700', marginBottom:8 }}>Collect your Fertilizers</Text>
               <Text style={{ color:'#fff', fontSize:14 }}>Request ID: 041</Text>
@@ -802,6 +802,12 @@ const styles = StyleSheet.create({
     color: "#222",
     fontSize: 13,
     opacity: 0.7,
+    marginBottom: 3,
+  },
+  reqCardDateRejected: {
+    color: '#b00020',
+    fontSize: 13,
+    fontWeight: '700',
     marginBottom: 3,
   },
   sheetBtn: {
