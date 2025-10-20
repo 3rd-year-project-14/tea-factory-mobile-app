@@ -109,3 +109,9 @@ export const createSupplierFertilizerRequest = (
     requestDate,
     items,
   });
+
+// Get payment history for a supplier
+export const getPaymentHistory = (supplierId, month, year) =>
+  apiClient.get(
+    `/api/supplier/payments/history?supplierId=${supplierId}&month=${month}&year=${year}`
+  );

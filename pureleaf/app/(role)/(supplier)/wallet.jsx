@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -30,40 +30,32 @@ import {
   getLoansBySupplier,
   editLoanRequest,
   deleteLoanRequest,
+  getPaymentHistory,
 } from "../../../services/supplierService";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
-const mockPayments = [
-  {
-    id: "001",
-    date: "01/06/25",
-    amount: 10000,
-    status: "Pending",
-    description: "Payment pending approval",
-  },
-  {
-    id: "002",
-    date: "02/06/25",
-    amount: 12000,
-    status: "Success",
-    description: "Paid to supplier",
-  },
-  {
-    id: "003",
-    date: "03/06/25",
-    amount: 11000,
-    status: "Pending",
-    description: "Payment pending approval",
-  },
-  {
-    id: "004",
-    date: "04/06/25",
-    amount: 15000,
-    status: "Success",
-    description: "Paid to supplier",
-  },
+const monthsArray = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
-const statusSort = { Pending: 0, Success: 1 };
+
+const currentMonthIndex = new Date().getMonth();
+const months = [
+  ...monthsArray.slice(currentMonthIndex),
+  ...monthsArray.slice(0, currentMonthIndex),
+];
+
+const statusSort = { APPROVED: 1, PENDING: 0, REJECTED: 0 };
 
 export default function WalletPage() {
   // 👇 All necessary state hooks are defined properly INSIDE the component now
@@ -81,6 +73,10 @@ export default function WalletPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const [paymentsHistory, setPaymentsHistory] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(0); // 0 is current month
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [loadingPayments, setLoadingPayments] = useState(false);
   const [paymentType, setPaymentType] = useState("Cash");
   const [showSelector, setShowSelector] = useState(false);
   const [showSlideModal, setShowSlideModal] = useState(false);
@@ -156,23 +152,24 @@ export default function WalletPage() {
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
 
   const filteredPayments = useMemo(() => {
-    return mockPayments
+    return paymentsHistory
       .filter((p) => {
         const term = searchTerm.trim().toLowerCase();
         if (!term) return true;
         return (
-          p.id.toLowerCase().includes(term) ||
-          p.date.toLowerCase().includes(term) ||
+          p.paymentType.toLowerCase().includes(term) ||
+          p.paymentDate.toLowerCase().includes(term) ||
           p.status.toLowerCase().includes(term)
         );
       })
       .sort((a, b) => {
         if (statusSort[a.status] !== statusSort[b.status])
           return statusSort[a.status] - statusSort[b.status];
-        if (a.date !== b.date) return b.date.localeCompare(a.date);
-        return b.id.localeCompare(a.id);
+        if (a.paymentDate !== b.paymentDate)
+          return b.paymentDate.localeCompare(a.paymentDate);
+        return b.paymentId.localeCompare(a.paymentId);
       });
-  }, [searchTerm]);
+  }, [searchTerm, paymentsHistory]);
 
   // Determine which loan to display: approved loan if exists, else requested loan
   const displayLoan = useMemo(() => {
@@ -184,6 +181,42 @@ export default function WalletPage() {
   }, [approvedLoans, loanData]);
 
   const money = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2 });
+
+  const fetchPaymentsHistory = useCallback(async () => {
+    try {
+      setLoadingPayments(true);
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        const supplierData = JSON.parse(supplierDataStr);
+        if (Array.isArray(supplierData) && supplierData.length > 0) {
+          supplierId = supplierData[0].supplierId;
+        } else if (supplierData && supplierData.supplierId) {
+          supplierId = supplierData.supplierId;
+        }
+      }
+      if (supplierId) {
+        const actualMonth = ((currentMonthIndex + selectedMonth) % 12) + 1;
+        const response = await getPaymentHistory(
+          supplierId,
+          actualMonth,
+          selectedYear
+        );
+        setPaymentsHistory(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching payment history:", error);
+      setPaymentsHistory([]);
+    } finally {
+      setLoadingPayments(false);
+    }
+  }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    if (showHistory) {
+      fetchPaymentsHistory();
+    }
+  }, [showHistory, fetchPaymentsHistory]);
 
   // Fetch existing advances, loan requests, and loans when screen comes into focus
   useFocusEffect(
@@ -1352,22 +1385,63 @@ export default function WalletPage() {
                     onChangeText={setSearchTerm}
                     autoCorrect={false}
                   />
+                  <View style={styles.filterContainer}>
+                    <View style={styles.yearSelector}>
+                      <TouchableOpacity
+                        onPress={() => setSelectedYear(selectedYear - 1)}
+                        style={styles.yearButton}
+                      >
+                        <Ionicons
+                          name="chevron-back"
+                          size={24}
+                          color="#274C3C"
+                        />
+                      </TouchableOpacity>
+                      <Text style={styles.yearText}>{selectedYear}</Text>
+                      <TouchableOpacity
+                        onPress={() => setSelectedYear(selectedYear + 1)}
+                        style={styles.yearButton}
+                      >
+                        <Ionicons
+                          name="chevron-forward"
+                          size={24}
+                          color="#274C3C"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.monthScroll}
+                    >
+                      {months.map((month, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          onPress={() => setSelectedMonth(index)}
+                          style={[
+                            styles.monthButton,
+                            selectedMonth === index && styles.selectedMonth,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.monthText,
+                              selectedMonth === index &&
+                                styles.selectedMonthText,
+                            ]}
+                          >
+                            {month}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
                   <View style={[styles.tableRow, styles.tableHeader]}>
-                    <Text
-                      style={[styles.cell, styles.headerCell, { flex: 0.9 }]}
-                    >
-                      Payment ID
+                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>
+                      Payment Type
                     </Text>
                     <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>
-                      Date
-                    </Text>
-                    <Text
-                      style={[styles.cell, styles.headerCell, { flex: 1.1 }]}
-                    >
-                      Total(Rs)
-                    </Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>
-                      Status
+                      Amount
                     </Text>
                   </View>
                   <FlatList
@@ -1381,25 +1455,11 @@ export default function WalletPage() {
                         onPress={() => setSelectedPayment(item)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.cell, { flex: 0.9 }]}>
-                          {item.id}
+                        <Text style={[styles.cell, { flex: 1 }]}>
+                          {item.paymentType}
                         </Text>
                         <Text style={[styles.cell, { flex: 1 }]}>
-                          {item.date}
-                        </Text>
-                        <Text style={[styles.cell, { flex: 1.1 }]}>
                           {money(item.amount)}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.cell,
-                            { flex: 1 },
-                            item.status === "Pending"
-                              ? styles.pendingStatus
-                              : styles.successStatus,
-                          ]}
-                        >
-                          {item.status}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -1411,7 +1471,7 @@ export default function WalletPage() {
                           marginTop: 40,
                         }}
                       >
-                        No results found.
+                        {loadingPayments ? "Loading..." : "No results found."}
                       </Text>
                     )}
                     contentContainerStyle={{}}
@@ -1434,41 +1494,41 @@ export default function WalletPage() {
               <TouchableWithoutFeedback>
                 <View style={styles.detailPopup}>
                   <Text style={styles.detailTitle}>Payment Details</Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Payment ID: </Text>
-                    <Text style={styles.detailVal}>{selectedPayment?.id}</Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Date: </Text>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Type:</Text>
                     <Text style={styles.detailVal}>
-                      {selectedPayment?.date}
+                      {selectedPayment?.paymentType}
                     </Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Amount: </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Date:</Text>
+                    <Text style={styles.detailVal}>
+                      {selectedPayment?.paymentDate
+                        ? new Date(
+                            selectedPayment.paymentDate
+                          ).toLocaleDateString("en-GB")
+                        : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Amount:</Text>
                     <Text style={styles.detailVal}>
                       Rs {money(selectedPayment?.amount || 0)}
                     </Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Status: </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Status:</Text>
                     <Text
                       style={[
                         styles.detailVal,
-                        selectedPayment?.status === "Pending"
-                          ? styles.pendingStatus
-                          : styles.successStatus,
+                        selectedPayment?.status === "APPROVED"
+                          ? styles.successStatus
+                          : styles.pendingStatus,
                       ]}
                     >
                       {selectedPayment?.status}
                     </Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Description: </Text>
-                    <Text style={styles.detailVal}>
-                      {selectedPayment?.description || "-"}
-                    </Text>
-                  </Text>
+                  </View>
                 </View>
               </TouchableWithoutFeedback>
             </View>
@@ -1783,7 +1843,7 @@ const styles = StyleSheet.create({
   cell: {
     fontSize: 15,
     color: "#232",
-    textAlign: "left",
+    textAlign: "center",
     paddingHorizontal: 1,
   },
   headerCell: {
@@ -1803,7 +1863,7 @@ const styles = StyleSheet.create({
     width: 315,
     backgroundColor: "#fff",
     borderRadius: 15,
-    padding: 22,
+    padding: 28,
     alignItems: "flex-start",
     elevation: 8,
     shadowColor: "#000",
@@ -1814,12 +1874,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 19,
     color: "#222",
-    marginBottom: 12,
+    marginBottom: 20,
     alignSelf: "center",
   },
-  detailRow: { fontSize: 15.5, marginBottom: 7, color: "#333" },
-  detailLabel: { fontWeight: "600" },
-  detailVal: { fontWeight: "400" },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingVertical: 4,
+  },
+  detailLabel: { fontSize: 16, fontWeight: "600", color: "#333", minWidth: 70 },
+  detailVal: { fontSize: 16, fontWeight: "500", color: "#165E52" },
   slideModalBg: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.10)",
@@ -1976,5 +2042,43 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  filterContainer: {
+    marginBottom: 20,
+  },
+  yearSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  yearButton: {
+    padding: 10,
+  },
+  yearText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#274C3C",
+    marginHorizontal: 20,
+  },
+  monthScroll: {
+    marginHorizontal: 20,
+  },
+  monthButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginHorizontal: 5,
+    borderRadius: 20,
+    backgroundColor: "#E7EDEB",
+  },
+  selectedMonth: {
+    backgroundColor: "#274C3C",
+  },
+  monthText: {
+    fontSize: 16,
+    color: "#274C3C",
+  },
+  selectedMonthText: {
+    color: "#fff",
   },
 });
