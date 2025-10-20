@@ -457,20 +457,9 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
         }}
         height={520}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={true}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          <Text
-            style={[styles.infoTitle, { alignSelf: "center", marginBottom: 8 }]}
-          >
-            Request Fertilizers
-          </Text>
-          <Text
-            style={{ alignSelf: "center", marginBottom: 12, color: "#444" }}
-          >
-            Add fertilizers and quantities to the cart
-          </Text>
+        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingBottom: 24 }}>
+          <Text style={[styles.infoTitle, { alignSelf: 'center', marginBottom: 8 }]}>Request Fertilizers</Text>
+          <Text style={{ alignSelf: 'center', marginBottom: 12, color: '#444' }}>Add fertilizers and quantities to the cart</Text>
 
     {loading ? (
       <View style={{ padding: 12 }}>
@@ -497,8 +486,49 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
                 </TouchableOpacity>
               </View>
             </View>
-          ))
-    )}
+          ) : error ? (
+            <View style={{ padding: 12 }}>
+              <Text style={{ color: "#900" }}>{error}</Text>
+            </View>
+          ) : (
+            fertilizerTypes.map((item) => (
+              <View
+                key={item.id}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 12,
+                  backgroundColor: "#fff",
+                  padding: 8,
+                  borderRadius: 12,
+                }}
+              >
+                <Image
+                  source={item.image}
+                  style={{ width: 80, height: 60, borderRadius: 8 }}
+                />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700" }}>
+                    {item.name}
+                  </Text>
+                  <Text style={{ color: "#666" }}>
+                    Price : Rs.{item.price}.00 Unit weight :{item.unit}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.sheetBtn,
+                      { minWidth: 80, backgroundColor: "#183d2b" },
+                    ]}
+                    onPress={() => addToWorkingCart(item, 1)}
+                  >
+                    <Text style={styles.sheetBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
 
           {/* Cart table */}
           <View
