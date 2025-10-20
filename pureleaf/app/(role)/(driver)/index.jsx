@@ -205,6 +205,8 @@ export default function SupplierHome() {
       }
       console.log("Driver ID:", _driverId);
 
+  // no paymentCollected flag to read
+
       // Check today's trip
       if (_driverId) {
         try {
@@ -453,29 +455,41 @@ export default function SupplierHome() {
             </Text>
           </ImageBackground>
         </View>
-        {/* Collect your Cash Card */}
-        <View style={styles.cashCard}>
+        {/* Collect your Cash Card - tap to open Wallet collection popup */}
+        <TouchableOpacity
+          style={styles.cashCard}
+          onPress={() => router.push('/(role)/(driver)/wallet?openCollect=true')}
+          activeOpacity={0.85}
+        >
           <View>
             <Text style={styles.cashCardLabel}>Collect your Cash</Text>
             <Text style={styles.cashCardDate}>Date : 25/06/25</Text>
           </View>
           <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
-        </View>
-        {/* This month's Supply Card */}
-        <View style={styles.supplyCard}>
+        </TouchableOpacity>
+        {/* This month's Supply Card (navigates to income) */}
+        <TouchableOpacity
+          style={styles.supplyCard}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(role)/(driver)/(nontabs)/income')}
+        >
           <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
           <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
           <Text style={styles.supplyCardValue}>
             1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
           </Text>
-        </View>
-        {/* Wallet Card */}
-        <View style={styles.supplyCard}>
+        </TouchableOpacity>
+        {/* Wallet Card - tap to open Wallet page */}
+        <TouchableOpacity
+          style={styles.supplyCard}
+          onPress={() => router.push('/(role)/(driver)/wallet')}
+          activeOpacity={0.85}
+        >
           <Text style={styles.supplyCardLabel}>Wallet</Text>
           <Text style={styles.walletCardValue}>
             Rs <Text style={styles.walletCardValueNum}>50,000.00</Text>
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Check In Button or Checked In Card based on today's status */}
         {isCheckedInToday === null && (

@@ -14,10 +14,12 @@ import {
   Keyboard,
   ScrollView,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import SlideToConfirm from "rn-slide-to-confirm";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -182,7 +184,30 @@ export default function WalletPage() {
     }
   }, []);
 
+  // handle openCollect query param like other role wallets
+  const router = useRouter();
+  const params = useLocalSearchParams();
+
+  React.useEffect(() => {
+    if (params?.openCollect === "true" || params?.openCollect === true) {
+      setShowSlideModal(true);
+      try {
+        router.replace("/(role)/(supplier)/wallet");
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [params]);
+
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
+
+  // screen/slider sizing for collect payment modal
+  const SCREEN_WIDTH = Dimensions.get("window").width;
+  const SLIDER_WIDTH = Math.floor(SCREEN_WIDTH * 0.9);
+  const SLIDER_THUMB_SIZE = 42; // thumb width/height
+
+  // hasLoan: true when there is loan data and amount is > 0
+  const hasLoan = loanData && Number(loanData.amount) > 0;
 
   const filteredPayments = useMemo(() => {
     return paymentsHistory
@@ -1234,7 +1259,7 @@ export default function WalletPage() {
           </Modal>
 
           {/* === COLLECT PAYMENT CARD === */}
-          <View style={styles.collectCard}>
+          <TouchableOpacity style={styles.collectCard} onPress={() => setShowSlideModal(true)} activeOpacity={0.8}>
             <View
               style={{
                 flexDirection: "row",
@@ -1246,13 +1271,8 @@ export default function WalletPage() {
               <Text style={styles.collectAmount}>Rs 50,000.00</Text>
             </View>
             <Text style={styles.collectDate}>Date : 25/06/25</Text>
-            <TouchableOpacity
-              style={styles.collectBtn}
-              onPress={() => setShowSlideModal(true)}
-            >
-              <Text style={styles.collectBtnText}>Collect</Text>
-            </TouchableOpacity>
-          </View>
+            {/* Collect button removed — card is clickable */}
+          </TouchableOpacity>
 
           {/* === LOAN CARD === */}
           <View style={styles.loanCard}>
@@ -1579,43 +1599,52 @@ export default function WalletPage() {
       <Modal
         visible={showSlideModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowSlideModal(false)}
       >
+        {/* bottom-aligned full-width popup */}
         <TouchableWithoutFeedback onPress={() => setShowSlideModal(false)}>
-          <View style={styles.slideModalBg}>
+          <View style={styles.slideModalBgBottom}>
             <TouchableWithoutFeedback>
-              <View style={styles.slideModal}>
+              <View style={[styles.slideModalBottom, { width: SCREEN_WIDTH }]}> 
+                <Text style={styles.collectPopupTitle}>Collect your Payment</Text>
+                <Text style={styles.collectPopupAmount}>Rs 50,000.00</Text>
+                <Text style={styles.collectPopupDate}>Date : 25/06/25</Text>
+                <View style={{ height: 10 }} />
                 <SlideToConfirm
                   unconfimredTipText="Slide to confirm Delivery"
                   confirmedTipText="Confirmed"
                   sliderStyle={{
-                    width: 220,
-                    height: 45,
-                    borderRadius: 27,
+                    width: SLIDER_WIDTH,
+                    height: SLIDER_THUMB_SIZE,
+                    borderRadius: SLIDER_THUMB_SIZE / 2,
                     backgroundColor: "#073229",
                     justifyContent: "center",
                   }}
                   unconfirmedTipTextStyle={{
                     color: "#fff",
                     fontSize: 15,
-                    marginLeft: 14,
+                    textAlign: 'center',
+                    lineHeight: SLIDER_THUMB_SIZE,
+                    width: '100%'
                   }}
                   confirmedTipTextStyle={{
                     color: "#fff",
                     fontSize: 15,
-                    marginLeft: 14,
+                    textAlign: 'center',
+                    lineHeight: SLIDER_THUMB_SIZE,
+                    width: '100%'
                   }}
                   thumbStyle={{
                     backgroundColor: "#f4f1ef",
-                    width: 42,
-                    height: 42,
-                    borderRadius: 21,
+                    width: SLIDER_THUMB_SIZE,
+                    height: SLIDER_THUMB_SIZE,
+                    borderRadius: SLIDER_THUMB_SIZE / 2,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                   thumbIcon={
-                    <Ionicons name="chevron-forward" size={28} color="#222" />
+                    <Ionicons name="chevron-forward" size={Math.floor(SLIDER_THUMB_SIZE * 0.65)} color="#222" />
                   }
                   onSlideConfirmed={() => {
                     setSlideConfirmed(true);
@@ -1626,6 +1655,7 @@ export default function WalletPage() {
                   }}
                   state={slideConfirmed}
                 />
+                <View style={styles.slideModalBottomPadding} />
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -1731,6 +1761,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#165E52",
     marginVertical: 2,
+  },
+  noLoanText: {
+    color: '#b3292a',
+    fontSize: 16,
+    fontWeight: '700',
   },
   loanRow: {
     flexDirection: "row",
@@ -1937,6 +1972,41 @@ const styles = StyleSheet.create({
     padding: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // bottom modal styles
+  slideModalBgBottom: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.14)'
+  },
+  slideModalBottom: {
+    backgroundColor: '#fff',
+    paddingTop: 26,
+    paddingBottom: 44,
+    alignItems: 'center',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    minHeight: 220,
+  },
+  slideModalBottomPadding: {
+    height: 22,
+  },
+  collectPopupTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#183d2b',
+    marginBottom: 6,
+  },
+  collectPopupAmount: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#165E52',
+  },
+  collectPopupDate: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 4,
   },
 
   advancePopup: {

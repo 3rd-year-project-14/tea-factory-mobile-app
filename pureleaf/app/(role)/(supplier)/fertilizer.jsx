@@ -22,13 +22,23 @@ import { createSupplierFertilizerRequest } from "../../../services/supplierServi
 // fertilizerTypes will be loaded from backend (FertilizerStockDisplayDTO)
 const defaultImage1 = require("../../../assets/images/fert1.jpg");
 const defaultImage2 = require("../../../assets/images/fert2.jpg");
+const defaultImage3 = require("../../../assets/images/fert3.jpg");
 
 function getImageForProduct(name) {
   if (!name) return defaultImage1;
   const n = name.toLowerCase();
   if (n.includes("urea")) return defaultImage1;
   if (n.includes("ammonium")) return defaultImage2;
-  return defaultImage1;
+  // For other fertilizers, pick one of the three images to add visual variety
+  const choices = [defaultImage1, defaultImage2, defaultImage3];
+  // Use a deterministic but varied selection based on name hash to avoid changing on every render
+  let hash = 0;
+  for (let i = 0; i < n.length; i++) {
+    hash = (hash << 5) - hash + n.charCodeAt(i);
+    hash |= 0; // convert to 32bit integer
+  }
+  const idx = Math.abs(hash) % choices.length;
+  return choices[idx];
 }
 
 export default function FertilizerPage() {
@@ -49,6 +59,7 @@ export default function FertilizerPage() {
 
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  const [placing, setPlacing] = useState(false);
 
   const refreshData = async () => {
     await fetchFertilizerTypes();
@@ -68,13 +79,22 @@ export default function FertilizerPage() {
       // Expected DTO: { fertilizerStockId, productName, weightPerQuantity, sellPrice }
       const data = Array.isArray(resp.data) ? resp.data : [];
       // Map to local shape used by UI (id, name, price, unit)
-      const mapped = data.map((d) => ({
-        id: d.fertilizerStockId,
-        name: d.productName,
-        image: getImageForProduct(d.productName),
-        price: d.sellPrice ?? 0,
-        unit: d.weightPerQuantity ? `${d.weightPerQuantity}kg` : "",
-      }));
+      const choices = [defaultImage1, defaultImage2, defaultImage3];
+      const mapped = data.map((d, idx) => {
+        const name = d.productName || '';
+        const n = String(name).toLowerCase();
+        let image = choices[idx % choices.length];
+        // keep deterministic images for known keywords
+        if (n.includes('urea')) image = defaultImage1;
+        else if (n.includes('ammonium')) image = defaultImage2;
+        return {
+          id: d.fertilizerStockId,
+          name: d.productName,
+          image,
+          price: d.sellPrice ?? 0,
+          unit: d.weightPerQuantity ? `${d.weightPerQuantity}kg` : "",
+        };
+      });
       setFertilizerTypes(mapped);
     } catch (err) {
       console.error("Failed to fetch fertilizer types", err);
@@ -146,49 +166,52 @@ export default function FertilizerPage() {
       Alert.alert("No items", "Please add fertilizers to your request.");
       return;
     }
-
-    // Get supplierId from AsyncStorage
+    // Build DTO
     let supplierId = null;
-    const supplierDataStr = await AsyncStorage.getItem("supplierData");
-    if (supplierDataStr) {
-      try {
-        const supplierData = JSON.parse(supplierDataStr);
-        if (Array.isArray(supplierData) && supplierData.length > 0) {
-          supplierId = supplierData[0].supplierId;
-        } else if (supplierData && supplierData.supplierId) {
-          supplierId = supplierData.supplierId;
+    try {
+      const supplierDataStr = await AsyncStorage.getItem('supplierData');
+      if (supplierDataStr) {
+        try {
+          const supplierData = JSON.parse(supplierDataStr);
+          if (Array.isArray(supplierData) && supplierData.length > 0) {
+            supplierId = supplierData[0].supplierId;
+          } else if (supplierData && supplierData.supplierId) {
+            supplierId = supplierData.supplierId;
+          }
+        } catch (e) {
+          supplierId = null;
         }
-      } catch (e) {
-        console.log("[ERROR] Parsing supplierData:", e);
       }
+    } catch (e) {
+      supplierId = null;
     }
     if (!supplierId) {
-      Alert.alert("Error", "Supplier ID not found. Please log in again.");
+      Alert.alert('Missing supplier', 'Cannot determine supplier ID.');
       return;
     }
 
-    // Prepare request payload
-    const requestDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const items = workingCart.map((item) => ({
-      fertilizerStockId: item.id,
-      quantity: item.qty,
-    }));
+    const dto = {
+      supplierId,
+      requestDate: new Date().toISOString().slice(0, 10),
+      note: 'Requesting fertilizer',
+      items: workingCart.map(w => ({ fertilizerStockId: w.id, quantity: Number(w.qty) })),
+    };
 
+    setPlacing(true);
     try {
-      await createSupplierFertilizerRequest(supplierId, requestDate, items);
-      // On success, commit to live cart
-      setCartItems(workingCart.map((c) => ({ ...c })));
-      if (selectionMode === "create") {
-        setFertilizerState("placed");
+      const resp = await createSupplierFertilizerRequest(dto);
+      // Assume success if no exception; update UI
+      setCartItems(workingCart.map(c => ({ ...c })));
+      if (selectionMode === 'create') {
+        setFertilizerState('placed');
       }
       selectionSheetRef.current.close();
-      Alert.alert("Success", "Fertilizer request placed successfully!");
-    } catch (error) {
-      console.error("Error placing fertilizer request:", error);
-      Alert.alert(
-        "Error",
-        "Failed to place fertilizer request. Please try again."
-      );
+      Alert.alert('Success', 'Fertilizer request placed successfully');
+    } catch (err) {
+      console.error('Failed to place fertilizer request', err);
+      Alert.alert('Error', 'Failed to place fertilizer request. Please try again.');
+    } finally {
+      setPlacing(false);
     }
   };
 
@@ -223,21 +246,22 @@ export default function FertilizerPage() {
               </View>
             ) : (
               fertilizerTypes.map((item, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={styles.fertilizerCard}
-                  onPress={() => {
-                    setSelectedInfoFertilizer(item);
-                    infoSheetRef.current.open();
-                  }}
-                >
-                  <Image source={item.image} style={styles.fertilizerImage} />
-                  <View style={styles.fertilizerLabelOverlay}>
-                    <Text style={styles.fertilizerLabelOverlayText}>
-                      {item.name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+              <TouchableOpacity
+                key={idx}
+                style={styles.fertilizerCard}
+                onPress={() => {
+                  setSelectedInfoFertilizer(item);
+                  infoSheetRef.current.open();
+                }}
+              >
+                {/* cycle images by index: 0->fert1,1->fert2,2->fert3,3->fert1... */}
+                <Image source={[defaultImage1, defaultImage2, defaultImage3][idx % 3]} style={styles.fertilizerImage} />
+                <View style={styles.fertilizerLabelOverlay}>
+                  <Text style={styles.fertilizerLabelOverlayText}>
+                    {item.name}
+                  </Text>
+                </View>
+              </TouchableOpacity>
               ))
             )}
           </ScrollView>
@@ -274,10 +298,11 @@ export default function FertilizerPage() {
             onPress={openRequestModal}
           >
             <Text style={styles.reqCardLabel}>Fertilizer request placed</Text>
-            <Text style={styles.reqCardDate}>
-              {fertilizerState === "placed" && "Tap to view or cancel"}
-              {fertilizerState === "driver" && "Driver on the way"}
-              {fertilizerState === "pending" && "Delivery confirmation pending"}
+            <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>
+              {fertilizerState === 'placed' && 'Tap to view or cancel'}
+              {fertilizerState === 'driver' && 'Driver on the way'}
+              {fertilizerState === 'pending' && 'Delivery confirmation pending'}
+              {fertilizerState === 'rejected' && 'Request rejected'}
             </Text>
             {/* Small cart preview */}
             <View
@@ -432,24 +457,34 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
         }}
         height={520}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={true}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          <Text
-            style={[styles.infoTitle, { alignSelf: "center", marginBottom: 8 }]}
-          >
-            Request Fertilizers
-          </Text>
-          <Text
-            style={{ alignSelf: "center", marginBottom: 12, color: "#444" }}
-          >
-            Add fertilizers and quantities to the cart
-          </Text>
+        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingBottom: 24 }}>
+          <Text style={[styles.infoTitle, { alignSelf: 'center', marginBottom: 8 }]}>Request Fertilizers</Text>
+          <Text style={{ alignSelf: 'center', marginBottom: 12, color: '#444' }}>Add fertilizers and quantities to the cart</Text>
 
-          {loading ? (
-            <View style={{ padding: 12 }}>
-              <ActivityIndicator size="small" color="#183d2b" />
+    {loading ? (
+      <View style={{ padding: 12 }}>
+        <ActivityIndicator size="small" color="#183d2b" />
+      </View>
+    ) : error ? (
+      <View style={{ padding: 12 }}>
+        <Text style={{ color: '#900' }}>{error}</Text>
+      </View>
+    ) : (
+              fertilizerTypes.map((item, idx) => (
+            <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: '#fff', padding: 8, borderRadius: 12 }}>
+              <Image source={[defaultImage1, defaultImage2, defaultImage3][idx % 3]} style={{ width: 80, height: 60, borderRadius: 8 }} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700' }}>{item.name}</Text>
+                <Text style={{ color: '#666' }}>Price : Rs.{item.price}.00  Unit weight :{item.unit}</Text>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={[styles.sheetBtn, { minWidth: 80, backgroundColor: '#183d2b' }]}
+      onPress={() => addToWorkingCart(item, 1)}
+                >
+                  <Text style={styles.sheetBtnText}>Add</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : error ? (
             <View style={{ padding: 12 }}>
@@ -600,16 +635,12 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.requestButton,
-                { marginTop: 8, alignSelf: "flex-end", marginBottom: 6 },
-              ]}
-              onPress={commitWorkingCart}
-            >
-              <Text style={styles.requestButtonText}>
-                {selectionMode === "edit" ? "Edit Order" : "Place Order"}
-              </Text>
+            <TouchableOpacity style={[styles.requestButton, { marginTop: 8, alignSelf: 'flex-end', marginBottom: 6 }]} onPress={commitWorkingCart} disabled={placing}>
+              {placing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.requestButtonText}>{selectionMode === 'edit' ? 'Edit Order' : 'Place Order'}</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -637,38 +668,14 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
         height={fertilizerState === "driver" ? 340 : 260}
       >
         <ScrollView
-          showsVerticalScrollIndicator={true}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          {fertilizerState === "placed" && (
-            <View>
-              <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-              <Text style={styles.reqCardDate}>Request placed</Text>
-              <View style={{ flexDirection: "row", marginTop: 16 }}>
-                <TouchableOpacity
-                  style={[
-                    styles.sheetBtn,
-                    { backgroundColor: "#183d2b", marginRight: 10 },
-                  ]}
-                  onPress={() => {
-                    requestSheetRef.current.close();
-                    setTimeout(() => {
-                      router.replace("/(role)/(nontabsmanager)/order");
-                    }, 300);
-                  }}
-                >
-                  <Text style={styles.sheetBtnText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sheetBtn, { backgroundColor: "#590804" }]}
-                  onPress={() => {
-                    setFertilizerState("none");
-                    requestSheetRef.current.close();
-                  }}
-                >
-                  <Text style={styles.sheetBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
+    showsVerticalScrollIndicator={true}
+    contentContainerStyle={{ paddingBottom: 24 }}
+  >
+    {fertilizerState === 'placed' && (
+          <View>
+            <Text style={styles.reqCardLabel}>Fertilizer request</Text>
+      <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Request placed</Text>
+            <View style={{ flexDirection: 'row', marginTop: 16 }}>
               <TouchableOpacity
                 style={[
                   styles.sheetBtn,
@@ -775,35 +782,14 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
             </View>
           )}
 
-          {fertilizerState === "pending" && (
-            <View>
-              <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-              <Text style={styles.reqCardDate}>Confirmation pending</Text>
-              <View
-                style={{
-                  backgroundColor: "#183d2b",
-                  borderRadius: 16,
-                  padding: 16,
-                  marginVertical: 18,
-                }}
-              >
-                <Text
-                  style={{
-                    color: "#fff",
-                    fontSize: 16,
-                    fontWeight: "700",
-                    marginBottom: 8,
-                  }}
-                >
-                  Collect your Fertilizers
-                </Text>
-                <Text style={{ color: "#fff", fontSize: 14 }}>
-                  Request ID: 041
-                </Text>
-                <Text style={{ color: "#fff", fontSize: 14 }}>Urea : 50kg</Text>
-                <Text style={{ color: "#fff", fontSize: 14 }}>
-                  Ammonium sulfate : 50kg
-                </Text>
+    {fertilizerState === 'driver' && (
+          <View>
+            <Text style={styles.reqCardLabel}>Fertilizer request</Text>
+      <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Driver on the way</Text>
+            <Text style={styles.reqCardDate}>Arriving at <Text style={{fontWeight:'bold'}}>5:45PM</Text></Text>
+            <View style={{ backgroundColor:'#183d2b',borderTopLeftRadius:30, borderBottomLeftRadius:30,flexDirection:'row', alignItems:'center', padding:16, marginVertical:10,width:300 }}>
+              <View style={{ width:60, height:60, borderRadius:30, backgroundColor:'#eee', marginRight:16, overflow:'hidden' }}>
+                <Image source={require('../../../assets/images/driver.jpg')} style={{ width: 60, height: 60, borderRadius: 30 }} />
               </View>
               <View style={{ alignItems: "center", marginTop: 18 }}>
                 <SlideToConfirm
@@ -847,7 +833,46 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
                 />
               </View>
             </View>
-          )}
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor:'#183d2b', marginTop:0, width:120, alignSelf:'center' }]} onPress={() => { /* Simulate phone call */ }}>
+              <Text style={{ color:'#fff', fontSize:16, fontWeight:'700' }}>Call</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor:'#fff', marginTop:18 }]} onPress={() => { setFertilizerState('pending'); requestSheetRef.current.close(); }}>
+              <Text style={styles.sheetBtnText1}>Simulate Delivery Pending</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+    {fertilizerState === 'pending' && (
+          <View>
+            <Text style={styles.reqCardLabel}>Fertilizer request</Text>
+      <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Confirmation pending</Text>
+            <View style={{ backgroundColor:'#183d2b', borderRadius:16, padding:16, marginVertical:18 }}>
+              <Text style={{ color:'#fff', fontSize:16, fontWeight:'700', marginBottom:8 }}>Collect your Fertilizers</Text>
+              <Text style={{ color:'#fff', fontSize:14 }}>Request ID: 041</Text>
+              <Text style={{ color:'#fff', fontSize:14 }}>Urea : 50kg</Text>
+              <Text style={{ color:'#fff', fontSize:14 }}>Ammonium sulfate : 50kg</Text>
+            </View>
+            <View style={{ alignItems:'center', marginTop:18 }}>
+              <SlideToConfirm
+                unconfimredTipText="Slide to confirm Delivery"
+                confirmedTipText="Confirmed"
+                state={confirming}
+                onSlideConfirmed={() => {
+                  setConfirming(true);
+                  setTimeout(() => {
+                    setFertilizerState('none');
+                    requestSheetRef.current.close();
+                    setConfirming(false);
+                  }, 1000);
+                }}
+                sliderStyle={{ width:300, height:60, borderRadius:30, backgroundColor: confirming ? '#6fcf97' : '#183d2b', justifyContent:'center' }}
+                unconfirmedTipTextStyle={{ color:'#fff', fontSize:18, textAlign:'center', lineHeight:60, width:'100%', position:'absolute', left:0 }}
+                confirmedTipTextStyle={{ color:'#fff', fontSize:18, textAlign:'center', lineHeight:60, width:'100%', position:'absolute', left:0 }}
+                thumbStyle={{ backgroundColor:'#fff', marginLeft:10 }}
+              />
+            </View>
+          </View>
+        )}
         </ScrollView>
       </RBSheet>
     </>
@@ -1060,6 +1085,12 @@ const styles = StyleSheet.create({
     color: "#222",
     fontSize: 13,
     opacity: 0.7,
+    marginBottom: 3,
+  },
+  reqCardDateRejected: {
+    color: '#b00020',
+    fontSize: 13,
+    fontWeight: '700',
     marginBottom: 3,
   },
   sheetBtn: {

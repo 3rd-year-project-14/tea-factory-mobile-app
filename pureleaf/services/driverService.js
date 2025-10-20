@@ -68,3 +68,9 @@ export const updateTripStatus = async (tripId, status) => {
   const res = await apiClient.put(`/api/trips/${tripId}/status`, { status });
   return res.data;
 };
+
+// Get weights summary for driver (monthly)
+export const getWeightsSummary = (driverId, month, year) =>
+  apiClient.get(
+    `/api/driverMobileApp/weights/summary?driverId=${driverId}&month=${month + 1}&year=${year}`
+  );
