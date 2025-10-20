@@ -252,20 +252,28 @@ export default function SupplierHome({ navigation }) {
   };
 
   const handleCancel = async () => {
-    // Delete supply request if exists
-    if (requestId) {
+    // Always attempt to delete from backend if todayRequestId exists
+    let deleted = false;
+    if (todayRequestId) {
+      try {
+        await deleteTeaSupplyRequest(todayRequestId);
+        deleted = true;
+      } catch (_error) {
+        // Could not delete from backend
+      }
+    } else if (requestId) {
       try {
         await deleteTeaSupplyRequest(requestId);
-        setTodayRequestId(null);
-        setTodayBagCount(null);
-        setRequestId(null);
-        setLastBagCount(null);
-        setSupplyState("none");
-      } catch (_error) {}
-    } else {
-      setLastBagCount(null);
-      setSupplyState("none");
+        deleted = true;
+      } catch (_error) {
+        // Could not delete from backend
+      }
     }
+    setTodayRequestId(null);
+    setTodayBagCount(null);
+    setRequestId(null);
+    setLastBagCount(null);
+    setSupplyState("none");
     sheetRef.current?.close();
   };
 
@@ -317,22 +325,16 @@ export default function SupplierHome({ navigation }) {
           <Text style={styles.sheetTitle}>
             {lastBagCount} <Text style={styles.supplyUnit}>bags</Text>
           </Text>
-          <View style={{ flexDirection: "row", marginTop: 16 }}>
+          <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 16 }}>
             <TouchableOpacity
-              style={[
-                styles.sheetBtn,
-                {
-                  backgroundColor: requestId ? "#183d2b" : "#bbb",
-                  marginRight: 10,
-                },
-              ]}
+              style={[styles.sheetBtn, { backgroundColor: requestId ? "#183d2b" : "#bbb", marginRight: 10, maxWidth: 120 }]}
               onPress={handleEdit}
               disabled={!requestId}
             >
               <Text style={styles.sheetBtnText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: "#590804" }]}
+              style={[styles.sheetBtn, { backgroundColor: "#590804", maxWidth: 120 }]}
               onPress={handleCancel}
             >
               <Text style={styles.sheetBtnText}>Delete</Text>
@@ -340,10 +342,7 @@ export default function SupplierHome({ navigation }) {
           </View>
           {new Date().getHours() >= 16 && (
             <TouchableOpacity
-              style={[
-                styles.sheetBtn,
-                { backgroundColor: "#fff", marginTop: 18 },
-              ]}
+              style={[styles.sheetBtn, { backgroundColor: "#fff", marginTop: 18 }]}
               onPress={() => {
                 setSupplyState("driver");
                 sheetRef.current.close();
