@@ -31,6 +31,7 @@ import {
   editLoanRequest,
   deleteLoanRequest,
   getPaymentHistory,
+  getDashboardSummary,
 } from "../../../services/supplierService";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
@@ -113,6 +114,13 @@ export default function WalletPage() {
     useState(null);
   const [deleteAdvanceLoading, setDeleteAdvanceLoading] = useState(false);
 
+  const [dashboardSummary, setDashboardSummary] = useState({
+    totalNetWeight: 0,
+    averageTeaRate: 0,
+    approvedCashAdvancePayments: 0,
+    approvedLoanPayments: 0,
+  });
+
   const refreshData = useCallback(async () => {
     try {
       const supplierDataStr = await AsyncStorage.getItem("supplierData");
@@ -146,6 +154,31 @@ export default function WalletPage() {
     } catch (error) {
       console.error("Error in refreshData:", error);
       console.error("Error details:", error?.response?.data || error.message);
+    }
+    await fetchDashboardSummary();
+  }, [fetchDashboardSummary]);
+
+  const fetchDashboardSummary = useCallback(async () => {
+    try {
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        const supplierData = JSON.parse(supplierDataStr);
+        if (Array.isArray(supplierData) && supplierData.length > 0) {
+          supplierId = supplierData[0].supplierId;
+        } else if (supplierData && supplierData.supplierId) {
+          supplierId = supplierData.supplierId;
+        }
+      }
+      if (!supplierId) return;
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1-based
+      const year = now.getFullYear();
+      const response = await getDashboardSummary(supplierId, month, year);
+      const data = response.data;
+      setDashboardSummary(data);
+    } catch (error) {
+      console.error("Error fetching dashboard summary:", error);
     }
   }, []);
 
@@ -272,9 +305,10 @@ export default function WalletPage() {
             error?.response?.data || error.message
           );
         }
+        await fetchDashboardSummary();
       };
       fetchExistingRequests();
-    }, [])
+    }, [fetchDashboardSummary])
   );
 
   return (
@@ -289,10 +323,15 @@ export default function WalletPage() {
         >
           {/* === WALLET CARD === */}
           <View style={styles.walletCard}>
-            <Text style={styles.walletTitle}>My Wallet</Text>
+            <Text style={styles.walletTitle}>My Estimated Wallet</Text>
             <Text style={styles.walletAmount}>
               <Text style={{ fontWeight: "bold" }}>Rs </Text>
-              <Text style={styles.amountValue}>50,000.00</Text>
+              <Text style={styles.amountValue}>
+                {(
+                  dashboardSummary.totalNetWeight *
+                  dashboardSummary.averageTeaRate
+                ).toFixed(2)}
+              </Text>
             </Text>
             <TouchableOpacity
               onPress={() => setShowSelector(true)}

@@ -115,3 +115,9 @@ export const getPaymentHistory = (supplierId, month, year) =>
   apiClient.get(
     `/api/supplier/payments/history?supplierId=${supplierId}&month=${month}&year=${year}`
   );
+
+// Get dashboard summary for supplier
+export const getDashboardSummary = (supplierId, month, year) =>
+  apiClient.get(
+    `/api/supplier/payments/dashboard-summary?supplierId=${supplierId}&month=${month}&year=${year}`
+  );
