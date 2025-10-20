@@ -65,7 +65,6 @@ export default function WalletPage() {
 
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState("");
-  const [advanceType, setAdvanceType] = useState("");
   const [advancePurpose, setAdvancePurpose] = useState("");
   const [advanceError, setAdvanceError] = useState("");
   const [existingAdvances, setExistingAdvances] = useState([]);
@@ -80,8 +79,6 @@ export default function WalletPage() {
   const [selectedMonth, setSelectedMonth] = useState(0); // 0 is current month
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loadingPayments, setLoadingPayments] = useState(false);
-  const [paymentType, setPaymentType] = useState("Cash");
-  const [showSelector, setShowSelector] = useState(false);
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [slideConfirmed, setSlideConfirmed] = useState(false);
   const [showLoanDetails, setShowLoanDetails] = useState(false);
@@ -105,7 +102,6 @@ export default function WalletPage() {
   // Edit advance modal state
   const [showEditAdvanceModal, setShowEditAdvanceModal] = useState(false);
   const [editAdvanceAmount, setEditAdvanceAmount] = useState("");
-  const [editAdvanceType, setEditAdvanceType] = useState("");
   const [editAdvancePurpose, setEditAdvancePurpose] = useState("");
   const [selectedAdvanceForEdit, setSelectedAdvanceForEdit] = useState(null);
   const [editAdvanceLoading, setEditAdvanceLoading] = useState(false);
@@ -358,15 +354,6 @@ export default function WalletPage() {
                 ).toFixed(2)}
               </Text>
             </Text>
-            <TouchableOpacity
-              onPress={() => setShowSelector(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.paymentType}>
-                Payment type :{" "}
-                <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
-              </Text>
-            </TouchableOpacity>
             <View style={styles.walletBtnRow}>
               <TouchableOpacity
                 style={[
@@ -408,9 +395,7 @@ export default function WalletPage() {
                     ).toLocaleString()}
                   </Text>
                 </View>
-                <Text style={styles.collectDate}>
-                  Payment Method : {item.paymentMethod || item.type}
-                </Text>
+                
                 <Text style={styles.collectDate}>Status : {item.status}</Text>
                 {(item.createdAt ||
                   item.requestedDate ||
@@ -446,9 +431,6 @@ export default function WalletPage() {
                           item.requestedAmount?.toString() ||
                             item.amount?.toString() ||
                             ""
-                        );
-                        setEditAdvanceType(
-                          item.paymentMethod === "CASH" ? "Cash" : "Bank"
                         );
                         setEditAdvancePurpose(item.purpose || "");
                         setShowEditAdvanceModal(true);
@@ -552,31 +534,6 @@ export default function WalletPage() {
                       }}
                     />
 
-                    <Text style={styles.advanceLabel}>Payment Type *</Text>
-                    <View style={styles.advanceDropdown}>
-                      {["Cash", "Bank"].map((type) => (
-                        <TouchableOpacity
-                          key={type}
-                          onPress={() => setAdvanceType(type)}
-                          style={[
-                            styles.advanceDropdownItem,
-                            advanceType === type &&
-                              styles.advanceDropdownItemSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.advanceDropdownText,
-                              advanceType === type &&
-                                styles.advanceDropdownTextSelected,
-                            ]}
-                          >
-                            {type}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
                     <Text style={styles.advanceLabel}>Purpose (Optional)</Text>
                     <TextInput
                       style={styles.advanceInput}
@@ -596,16 +553,14 @@ export default function WalletPage() {
                     <TouchableOpacity
                       style={[
                         styles.advanceRequestBtn,
-                        (!(advanceAmount && advanceType) || advanceLoading) && {
+                        (!advanceAmount || advanceLoading) && {
                           backgroundColor: "#ccc",
                         },
                       ]}
-                      disabled={
-                        !(advanceAmount && advanceType) || advanceLoading
-                      }
+                      disabled={!advanceAmount || advanceLoading}
                       onPress={async () => {
-                        if (!advanceAmount || !advanceType) {
-                          setAdvanceError("All fields are required.");
+                        if (!advanceAmount) {
+                          setAdvanceError("Amount is required.");
                           return;
                         }
                         setAdvanceLoading(true);
@@ -632,8 +587,7 @@ export default function WalletPage() {
                             setAdvanceLoading(false);
                             return;
                           }
-                          const paymentMethod =
-                            advanceType === "Cash" ? "CASH" : "BANK";
+                          const paymentMethod = "BANK";
                           console.log("Advance Request Data:", {
                             supplierId,
                             requestedAmount: advanceAmount,
@@ -681,7 +635,6 @@ export default function WalletPage() {
                           ]);
                           // clear form
                           setAdvanceAmount("");
-                          setAdvanceType("");
                           setAdvancePurpose("");
                           setAdvanceError("");
                           setShowAdvanceModal(false);
@@ -1000,31 +953,6 @@ export default function WalletPage() {
                       }}
                     />
 
-                    <Text style={styles.advanceLabel}>Payment Type *</Text>
-                    <View style={styles.advanceDropdown}>
-                      {["Cash", "Bank"].map((type) => (
-                        <TouchableOpacity
-                          key={type}
-                          onPress={() => setEditAdvanceType(type)}
-                          style={[
-                            styles.advanceDropdownItem,
-                            editAdvanceType === type &&
-                              styles.advanceDropdownItemSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.advanceDropdownText,
-                              editAdvanceType === type &&
-                                styles.advanceDropdownTextSelected,
-                            ]}
-                          >
-                            {type}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
                     <Text style={styles.advanceLabel}>Purpose (Optional)</Text>
                     <TextInput
                       style={styles.advanceInput}
@@ -1038,19 +966,13 @@ export default function WalletPage() {
                     <TouchableOpacity
                       style={[
                         styles.advanceRequestBtn,
-                        (!(editAdvanceAmount && editAdvanceType) ||
-                          editAdvanceLoading) && { backgroundColor: "#ccc" },
+                        (!editAdvanceAmount || editAdvanceLoading) && {
+                          backgroundColor: "#ccc",
+                        },
                       ]}
-                      disabled={
-                        !(editAdvanceAmount && editAdvanceType) ||
-                        editAdvanceLoading
-                      }
+                      disabled={!editAdvanceAmount || editAdvanceLoading}
                       onPress={async () => {
-                        if (
-                          !editAdvanceAmount ||
-                          !editAdvanceType ||
-                          !selectedAdvanceForEdit
-                        )
+                        if (!editAdvanceAmount || !selectedAdvanceForEdit)
                           return;
                         setEditAdvanceLoading(true);
                         try {
@@ -1077,8 +999,7 @@ export default function WalletPage() {
                             return;
                           }
 
-                          const paymentMethod =
-                            editAdvanceType === "Cash" ? "CASH" : "BANK";
+                          const paymentMethod = "BANK";
 
                           await editAdvanceRequest(
                             selectedAdvanceForEdit.reqId ||
@@ -1094,7 +1015,6 @@ export default function WalletPage() {
                           setShowEditAdvanceModal(false);
                           setSelectedAdvanceForEdit(null);
                           setEditAdvanceAmount("");
-                          setEditAdvanceType("");
                           setEditAdvancePurpose("");
                         } catch (err) {
                           console.log(
@@ -1259,7 +1179,11 @@ export default function WalletPage() {
           </Modal>
 
           {/* === COLLECT PAYMENT CARD === */}
-          <TouchableOpacity style={styles.collectCard} onPress={() => setShowSlideModal(true)} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.collectCard}
+            onPress={() => setShowSlideModal(true)}
+            activeOpacity={0.8}
+          >
             <View
               style={{
                 flexDirection: "row",
@@ -1316,36 +1240,6 @@ export default function WalletPage() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
-
-      {/* === PAYMENT TYPE SELECTOR MODAL === */}
-      <Modal
-        visible={showSelector}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSelector(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowSelector(false)}>
-          <View style={styles.modalBgSel}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContainer}>
-                <Text style={styles.modalTitle}>Select Payment method</Text>
-                {["Cash", "Bank Transfer", "Check"].map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={styles.modalOption}
-                    onPress={() => {
-                      setPaymentType(option);
-                      setShowSelector(false);
-                    }}
-                  >
-                    <Text style={styles.modalOptionText}>{option}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
 
       {/* === LOAN DETAILS MODAL === */}
       <Modal
@@ -1606,8 +1500,10 @@ export default function WalletPage() {
         <TouchableWithoutFeedback onPress={() => setShowSlideModal(false)}>
           <View style={styles.slideModalBgBottom}>
             <TouchableWithoutFeedback>
-              <View style={[styles.slideModalBottom, { width: SCREEN_WIDTH }]}> 
-                <Text style={styles.collectPopupTitle}>Collect your Payment</Text>
+              <View style={[styles.slideModalBottom, { width: SCREEN_WIDTH }]}>
+                <Text style={styles.collectPopupTitle}>
+                  Collect your Payment
+                </Text>
                 <Text style={styles.collectPopupAmount}>Rs 50,000.00</Text>
                 <Text style={styles.collectPopupDate}>Date : 25/06/25</Text>
                 <View style={{ height: 10 }} />
@@ -1624,16 +1520,16 @@ export default function WalletPage() {
                   unconfirmedTipTextStyle={{
                     color: "#fff",
                     fontSize: 15,
-                    textAlign: 'center',
+                    textAlign: "center",
                     lineHeight: SLIDER_THUMB_SIZE,
-                    width: '100%'
+                    width: "100%",
                   }}
                   confirmedTipTextStyle={{
                     color: "#fff",
                     fontSize: 15,
-                    textAlign: 'center',
+                    textAlign: "center",
                     lineHeight: SLIDER_THUMB_SIZE,
-                    width: '100%'
+                    width: "100%",
                   }}
                   thumbStyle={{
                     backgroundColor: "#f4f1ef",
@@ -1644,7 +1540,11 @@ export default function WalletPage() {
                     justifyContent: "center",
                   }}
                   thumbIcon={
-                    <Ionicons name="chevron-forward" size={Math.floor(SLIDER_THUMB_SIZE * 0.65)} color="#222" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={Math.floor(SLIDER_THUMB_SIZE * 0.65)}
+                      color="#222"
+                    />
                   }
                   onSlideConfirmed={() => {
                     setSlideConfirmed(true);
@@ -1763,9 +1663,9 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   noLoanText: {
-    color: '#b3292a',
+    color: "#b3292a",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   loanRow: {
     flexDirection: "row",
@@ -1977,14 +1877,14 @@ const styles = StyleSheet.create({
   // bottom modal styles
   slideModalBgBottom: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.14)'
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.14)",
   },
   slideModalBottom: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingTop: 26,
     paddingBottom: 44,
-    alignItems: 'center',
+    alignItems: "center",
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     minHeight: 220,
@@ -1994,18 +1894,18 @@ const styles = StyleSheet.create({
   },
   collectPopupTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#183d2b',
+    fontWeight: "700",
+    color: "#183d2b",
     marginBottom: 6,
   },
   collectPopupAmount: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#165E52',
+    fontWeight: "700",
+    color: "#165E52",
   },
   collectPopupDate: {
     fontSize: 13,
-    color: '#666',
+    color: "#666",
     marginTop: 4,
   },
 
