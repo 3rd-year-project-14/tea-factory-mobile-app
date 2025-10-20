@@ -677,110 +677,37 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
       <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Request placed</Text>
             <View style={{ flexDirection: 'row', marginTop: 16 }}>
               <TouchableOpacity
-                style={[
-                  styles.sheetBtn,
-                  { backgroundColor: "#fff", marginTop: 18 },
-                ]}
+                style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
                 onPress={() => {
-                  setFertilizerState("driver");
+                  requestSheetRef.current.close();
+                  setTimeout(() => {
+                    router.replace('/(role)/(nontabsmanager)/order');
+                  }, 300);
+                }}
+              >
+                <Text style={styles.sheetBtnText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sheetBtn, { backgroundColor: '#590804' }]}
+                onPress={() => {
+                  setFertilizerState('none');
                   requestSheetRef.current.close();
                 }}
               >
-                <Text style={styles.sheetBtnText1}>
-                  Simulate Driver On The Way
-                </Text>
+                <Text style={styles.sheetBtnText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-          )}
-
-          {fertilizerState === "driver" && (
-            <View>
-              <Text style={styles.reqCardLabel}>Fertilizer request</Text>
-              <Text style={styles.reqCardDate}>Driver on the way</Text>
-              <Text style={styles.reqCardDate}>
-                Arriving at <Text style={{ fontWeight: "bold" }}>5:45PM</Text>
-              </Text>
-              <View
-                style={{
-                  backgroundColor: "#183d2b",
-                  borderTopLeftRadius: 30,
-                  borderBottomLeftRadius: 30,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  padding: 16,
-                  marginVertical: 10,
-                  width: 300,
-                }}
-              >
-                <View
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 30,
-                    backgroundColor: "#eee",
-                    marginRight: 16,
-                    overflow: "hidden",
-                  }}
-                >
-                  <Image
-                    source={require("../../../assets/images/driver.jpg")}
-                    style={{ width: 60, height: 60, borderRadius: 30 }}
-                  />
-                </View>
-                <View>
-                  <Text
-                    style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}
-                  >
-                    Saman
-                  </Text>
-                  <Text style={{ color: "#fff", fontSize: 14 }}>
-                    is on the way
-                  </Text>
-                  <Text style={{ color: "#fff", fontSize: 13 }}>
-                    Vehicle :{" "}
-                    <Text style={{ fontWeight: "bold" }}>LN 2535</Text>
-                  </Text>
-                  <Text style={{ color: "#fff", fontSize: 13, opacity: 0.8 }}>
-                    Isuzu NKR66E
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.sheetBtn,
-                  {
-                    backgroundColor: "#183d2b",
-                    marginTop: 0,
-                    width: 120,
-                    alignSelf: "center",
-                  },
-                ]}
-                onPress={() => {
-                  /* Simulate phone call */
-                }}
-              >
-                <Text
-                  style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
-                >
-                  Call
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sheetBtn,
-                  { backgroundColor: "#fff", marginTop: 18 },
-                ]}
-                onPress={() => {
-                  setFertilizerState("pending");
-                  requestSheetRef.current.close();
-                }}
-              >
-                <Text style={styles.sheetBtnText1}>
-                  Simulate Delivery Pending
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
+              onPress={() => {
+                setFertilizerState('driver');
+                requestSheetRef.current.close();
+              }}
+            >
+              <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
     {fertilizerState === 'driver' && (
           <View>
@@ -791,46 +718,11 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
               <View style={{ width:60, height:60, borderRadius:30, backgroundColor:'#eee', marginRight:16, overflow:'hidden' }}>
                 <Image source={require('../../../assets/images/driver.jpg')} style={{ width: 60, height: 60, borderRadius: 30 }} />
               </View>
-              <View style={{ alignItems: "center", marginTop: 18 }}>
-                <SlideToConfirm
-                  unconfimredTipText="Slide to confirm Delivery"
-                  confirmedTipText="Confirmed"
-                  state={confirming}
-                  onSlideConfirmed={() => {
-                    setConfirming(true);
-                    setTimeout(() => {
-                      setFertilizerState("none");
-                      requestSheetRef.current.close();
-                      setConfirming(false);
-                    }, 1000);
-                  }}
-                  sliderStyle={{
-                    width: 300,
-                    height: 60,
-                    borderRadius: 30,
-                    backgroundColor: confirming ? "#6fcf97" : "#183d2b",
-                    justifyContent: "center",
-                  }}
-                  unconfirmedTipTextStyle={{
-                    color: "#fff",
-                    fontSize: 18,
-                    textAlign: "center",
-                    lineHeight: 60,
-                    width: "100%",
-                    position: "absolute",
-                    left: 0,
-                  }}
-                  confirmedTipTextStyle={{
-                    color: "#fff",
-                    fontSize: 18,
-                    textAlign: "center",
-                    lineHeight: 60,
-                    width: "100%",
-                    position: "absolute",
-                    left: 0,
-                  }}
-                  thumbStyle={{ backgroundColor: "#fff", marginLeft: 10 }}
-                />
+              <View>
+                <Text style={{ color:'#fff', fontSize:18, fontWeight:'700' }}>Saman</Text>
+                <Text style={{ color:'#fff', fontSize:14 }}>is on the way</Text>
+                <Text style={{ color:'#fff', fontSize:13 }}>Vehicle : <Text style={{ fontWeight:'bold' }}>LN 2535</Text></Text>
+                <Text style={{ color:'#fff', fontSize:13, opacity:0.8 }}>Isuzu NKR66E</Text>
               </View>
             </View>
             <TouchableOpacity style={[styles.sheetBtn, { backgroundColor:'#183d2b', marginTop:0, width:120, alignSelf:'center' }]} onPress={() => { /* Simulate phone call */ }}>

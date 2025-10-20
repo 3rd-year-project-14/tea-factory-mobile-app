@@ -98,17 +98,10 @@ export const getDailySummary = (supplierId, month, year) =>
     `/api/factory-dashboard/supplier/${supplierId}/daily-summary?month=${month + 1}&year=${year}`
   );
 
-// Create supplier fertilizer request
-export const createSupplierFertilizerRequest = (
-  supplierId,
-  requestDate,
-  items
-) =>
-  apiClient.post("/api/supplier-fertilizer-requests", {
-    supplierId,
-    requestDate,
-    items,
-  });
+
+  // Create supplier fertilizer request
+export const createSupplierFertilizerRequest = (dto) =>
+  apiClient.post('/api/supplier-fertilizer-requests', dto);
 
 // Get payment history for a supplier
 export const getPaymentHistory = (supplierId, month, year) =>
@@ -121,3 +114,5 @@ export const getDashboardSummary = (supplierId, month, year) =>
   apiClient.get(
     `/api/supplier/payments/dashboard-summary?supplierId=${supplierId}&month=${month}&year=${year}`
   );
+
+
