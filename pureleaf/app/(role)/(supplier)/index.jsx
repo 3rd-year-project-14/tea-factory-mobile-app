@@ -302,7 +302,7 @@ export default function SupplierHome({ navigation }) {
               <Text style={styles.sheetBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[
               styles.sheetBtn,
               { backgroundColor: "#fff", marginTop: 18 },
@@ -313,7 +313,7 @@ export default function SupplierHome({ navigation }) {
             }}
           >
             <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       );
     }

@@ -61,3 +61,7 @@ export const getDailySummary = (supplierId, month, year) =>
   apiClient.get(
     `/api/factory-dashboard/supplier/${supplierId}/daily-summary?month=${month + 1}&year=${year}`
   );
+
+// Create supplier fertilizer request
+export const createSupplierFertilizerRequest = (dto) =>
+  apiClient.post('/api/supplier-fertilizer-requests', dto);

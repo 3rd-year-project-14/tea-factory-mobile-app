@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,11 @@ import {
   Platform,
   Keyboard,
   ScrollView,
+  Dimensions,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import SlideToConfirm from "rn-slide-to-confirm";
 
 const mockPayments = [
@@ -35,7 +37,7 @@ export default function WalletPage() {
   const [advanceError, setAdvanceError] = useState("");
   const [advanceCards, setAdvanceCards] = useState([]);
 
-  const [showHistory, setShowHistory] = useState(false);
+  // history sheet removed — displaying inline history table
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentType, setPaymentType] = useState("Cash");
@@ -43,6 +45,13 @@ export default function WalletPage() {
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [slideConfirmed, setSlideConfirmed] = useState(false);
   const [showLoanDetails, setShowLoanDetails] = useState(false);
+  const [collectAmount, setCollectAmount] = useState(50000);
+  const [collectDate, setCollectDate] = useState('25/06/25');
+  const screenWidth = Dimensions.get('window').width;
+  const sliderWidth = Math.round(screenWidth * 0.9);
+  const sliderHeight = 64;
+  const thumbSize = sliderHeight; // thumb circle equals slider height
+  const thumbIconSize = Math.round(thumbSize * 0.56);
 
   const filteredPayments = useMemo(() => {
     return mockPayments
@@ -64,6 +73,20 @@ export default function WalletPage() {
 
   const money = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2 });
 
+  // openCollect param handling
+  const router = useRouter();
+  const params = useLocalSearchParams();
+
+  useEffect(() => {
+    if (params?.openCollect === 'true' || params?.openCollect === true) {
+      setShowSlideModal(true);
+      // remove the query param so it doesn't reopen on revisit
+      try { router.replace('/(role)/(driver)/wallet'); } catch (e) {}
+    }
+  }, [params]);
+
+  // no persisted flag: always show collect card
+
   return (
     <>
       <SafeAreaView style={styles.container}>
@@ -75,142 +98,67 @@ export default function WalletPage() {
               <Text style={{ fontWeight: "bold" }}>Rs </Text>
               <Text style={styles.amountValue}>50,000.00</Text>
             </Text>
-            <Text style={styles.paymentType}>
-              Payment type : <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
-            </Text>
-            <View style={styles.walletBtnRow}>
-              <TouchableOpacity style={styles.walletBtn} onPress={() => setShowSelector(true)}>
-                <Text style={styles.walletBtnText}>Change{"\n"}Payment type</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.walletBtn} onPress={() => setShowAdvanceModal(true)}>
-  <Text style={styles.walletBtnText}>Request{"\n"}Advance</Text>
-</TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowSelector(true)} activeOpacity={0.8}>
+              <Text style={styles.paymentType}>
+                Payment type : <Text style={{ fontWeight: "600" }}>{paymentType}</Text>
+              </Text>
+            </TouchableOpacity>
+            
 
             </View>
-          </View>
 
-{/* === Requested Advance Cards === */}
-{advanceCards.map((item, index) => (
-  <View key={index} style={styles.collectCard}>
-    <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
-      <Text style={styles.collectTitle}>Advance Request</Text>
-      <Text style={styles.collectAmount}>Rs {Number(item.amount).toLocaleString()}</Text>
-    </View>
-    <Text style={styles.collectDate}>Payment Type : {item.paymentType}</Text>
-  </View>
-))}
 
-{/* === Request Advance Modal === */}
-<Modal
-  visible={showAdvanceModal}
-  transparent
-  animationType="fade"
-  onRequestClose={() => setShowAdvanceModal(false)}
->
-  <TouchableWithoutFeedback onPress={() => setShowAdvanceModal(false)}>
-    <View style={styles.loanModalBackdrop}>
-      <TouchableWithoutFeedback>
-        <View style={styles.advancePopup}>
-          <Text style={styles.loanPopupTitle}>Request Advance</Text>
 
-          <Text style={styles.advanceLabel}>Amount *</Text>
-          <TextInput
-            style={styles.advanceInput}
-            keyboardType="numeric"
-            placeholder="Enter amount"
-            placeholderTextColor="#999"
-            maxLength={9}
-            value={advanceAmount}
-            onChangeText={(value) => {
-              if (/^\d*$/.test(value)) setAdvanceAmount(value);
-            }}
-          />
 
-          <Text style={styles.advanceLabel}>Payment Type *</Text>
-          <View style={styles.advanceDropdown}>
-            {["Cash", "Bank Transfer", "Cheque"].map(type => (
-              <TouchableOpacity
-                key={type}
-                onPress={() => setAdvanceType(type)}
-                style={[
-                  styles.advanceDropdownItem,
-                  advanceType === type && styles.advanceDropdownItemSelected
-                ]}
-              >
-                <Text style={[
-                  styles.advanceDropdownText,
-                  advanceType === type && styles.advanceDropdownTextSelected
-                ]}>
-                  {type}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {advanceError !== "" && (
-            <Text style={styles.advanceErrorText}>{advanceError}</Text>
-          )}
-
-          <TouchableOpacity
-            style={[
-              styles.advanceRequestBtn,
-              !(advanceAmount && advanceType) && { backgroundColor: "#ccc" },
-            ]}
-            disabled={!(advanceAmount && advanceType)}
-            onPress={() => {
-              if (!advanceAmount || !advanceType) {
-                setAdvanceError("All fields are required.");
-                return;
-              }
-              setAdvanceCards(prev => [...prev, {
-                amount: advanceAmount,
-                paymentType: advanceType,
-              }]);
-              // clear form
-              setAdvanceAmount("");
-              setAdvanceType("");
-              setAdvanceError("");
-              setShowAdvanceModal(false);
-            }}
-          >
-            <Text style={styles.advanceRequestBtnText}>Request</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableWithoutFeedback>
-    </View>
-  </TouchableWithoutFeedback>
-</Modal>
 
 
           {/* === COLLECT PAYMENT CARD === */}
-          <View style={styles.collectCard}>
+          <TouchableOpacity style={styles.collectCard} onPress={() => setShowSlideModal(true)} activeOpacity={0.85}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
               <Text style={styles.collectTitle}>Collect your Payment</Text>
               <Text style={styles.collectAmount}>Rs 50,000.00</Text>
             </View>
             <Text style={styles.collectDate}>Date : 25/06/25</Text>
-            <TouchableOpacity style={styles.collectBtn} onPress={() => setShowSlideModal(true)}>
-              <Text style={styles.collectBtnText}>Collect</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* === LOAN CARD === */}
-          <View style={styles.loanCard}>
-            <Text style={styles.loanTitle}>Loan</Text>
-            <Text style={styles.loanPending}>Pending amount to pay</Text>
-            <Text style={styles.loanAmount}>Rs 50,000.00</Text>
-            <View style={styles.loanRow}>
-              <Text style={styles.loanPending}>Monthly payment</Text>
-              <Text style={styles.loanMonthAmount}>Rs 18,000.00</Text>
-            </View>
-            <TouchableOpacity style={styles.loanBtn} onPress={() => setShowLoanDetails(true)}>
-              <Text style={styles.loanBtnText}>View</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={{ marginTop: 22, marginLeft: 14 }} onPress={() => setShowHistory(true)}>
-            <Text style={styles.historyText}>View Payment History</Text>
+            {/* entire card is clickable — removed inner Collect button */}
           </TouchableOpacity>
+
+          
+
+          {/* history sheet removed — inline table below */}
+          {/* Inline Payment History table (visible on page) */}
+          <View style={{ width: '94%', marginTop: 16, marginBottom: 14 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#183d2b', marginBottom: 8 }}>Payment History</Text>
+            <TextInput
+              style={[styles.searchBar, { width: '100%' }]}
+              placeholder="Search Payment"
+              placeholderTextColor="#888"
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              autoCorrect={false}
+            />
+            <View style={[styles.tableRow, styles.tableHeader, { marginTop: 8 }]}>
+              <Text style={[styles.cell, styles.headerCell, { flex: 0.9 }]}>Payment ID</Text>
+              <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Date</Text>
+              <Text style={[styles.cell, styles.headerCell, { flex: 1.1 }]}>Total(Rs)</Text>
+              <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Status</Text>
+            </View>
+            <FlatList
+              data={filteredPayments}
+              keyExtractor={(item) => item.id}
+              style={{ maxHeight: 260, minHeight: 40, backgroundColor: '#fff' }}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.tableRow} onPress={() => setSelectedPayment(item)} activeOpacity={0.8}>
+                  <Text style={[styles.cell, { flex: 0.9 }]}>{item.id}</Text>
+                  <Text style={[styles.cell, { flex: 1 }]}>{item.date}</Text>
+                  <Text style={[styles.cell, { flex: 1.1 }]}>{money(item.amount)}</Text>
+                  <Text style={[styles.cell, { flex: 1 }, item.status === 'Pending' ? styles.pendingStatus : styles.successStatus]}>{item.status}</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={() => (
+                <Text style={{ color: '#999', alignSelf: 'center', marginTop: 18 }}>No payments yet.</Text>
+              )}
+            />
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -244,167 +192,57 @@ export default function WalletPage() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* === LOAN DETAILS MODAL === */}
+      {/* === PAYMENT DETAIL POPUP (top-level) === */}
       <Modal
-        visible={showLoanDetails}
+        visible={!!selectedPayment}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowLoanDetails(false)}
+        onRequestClose={() => setSelectedPayment(null)}
       >
-        <TouchableWithoutFeedback onPress={() => setShowLoanDetails(false)}>
-          <View style={styles.loanModalBackdrop}>
+        <TouchableWithoutFeedback onPress={() => setSelectedPayment(null)}>
+          <View style={styles.detailModalBg}>
             <TouchableWithoutFeedback>
-              <View style={styles.loanPopup}>
-                <Text style={styles.loanPopupTitle}>Loan Details</Text>
-                <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Loan Amount:</Text>
-                  <Text style={styles.loanPopupValue}>Rs 50,000.00</Text>
-                </View>
-                <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Monthly Installment:</Text>
-                  <Text style={styles.loanPopupValue}>Rs 18,000.00</Text>
-                </View>
-                <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Interest Rate:</Text>
-                  <Text style={styles.loanPopupValue}>12%</Text>
-                </View>
-                <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Amount Payable:</Text>
-                  <Text style={styles.loanPopupValue}>Rs 54,000.00</Text>
-                </View>
-                <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Payment Type:</Text>
-                  <Text style={styles.loanPopupValue}>{paymentType}</Text>
-                </View>
+              <View style={styles.detailPopup}>
+                <Text style={styles.detailTitle}>Payment Details</Text>
+                <Text style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Payment ID: </Text>
+                  <Text style={styles.detailVal}>{selectedPayment?.id}</Text>
+                </Text>
+                <Text style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Date: </Text>
+                  <Text style={styles.detailVal}>{selectedPayment?.date}</Text>
+                </Text>
+                <Text style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Amount: </Text>
+                  <Text style={styles.detailVal}>Rs {money(selectedPayment?.amount || 0)}</Text>
+                </Text>
+                <Text style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Status: </Text>
+                  <Text style={[
+                    styles.detailVal,
+                    selectedPayment?.status === "Pending"
+                      ? styles.pendingStatus
+                      : styles.successStatus,
+                  ]}>
+                    {selectedPayment?.status}
+                  </Text>
+                </Text>
+                <Text style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Description: </Text>
+                  <Text style={styles.detailVal}>
+                    {selectedPayment?.description || "-"}
+                  </Text>
+                </Text>
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* === PAYMENT HISTORY MODAL (WITH DETAIL POPUP) === */}
-      <Modal
-        visible={showHistory}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!selectedPayment) setShowHistory(false);
-        }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalBg}>
-              <TouchableWithoutFeedback>
-                <View style={styles.sheet}>
-                  <TouchableOpacity
-                    onPress={() => setShowHistory(false)}
-                    style={styles.downArrowBtn}
-                  >
-                    <Ionicons name="chevron-down" size={28} color="#183d2b" />
-                  </TouchableOpacity>
-                  <Text style={styles.sheetTitle}>Payment History</Text>
-                  <TextInput
-                    style={styles.searchBar}
-                    placeholder="Search Payment"
-                    placeholderTextColor="#888"
-                    value={searchTerm}
-                    onChangeText={setSearchTerm}
-                    autoCorrect={false}
-                  />
-                  <View style={[styles.tableRow, styles.tableHeader]}>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 0.9 }]}>Payment ID</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Date</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1.1 }]}>Total(Rs)</Text>
-                    <Text style={[styles.cell, styles.headerCell, { flex: 1 }]}>Status</Text>
-                  </View>
-                  <FlatList
-                    data={filteredPayments}
-                    keyExtractor={(_, i) => String(i)}
-                    keyboardShouldPersistTaps="handled"
-                    style={{ maxHeight: 370, minHeight: 30 }}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.tableRow}
-                        onPress={() => setSelectedPayment(item)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.cell, { flex: 0.9 }]}>{item.id}</Text>
-                        <Text style={[styles.cell, { flex: 1 }]}>{item.date}</Text>
-                        <Text style={[styles.cell, { flex: 1.1 }]}>{money(item.amount)}</Text>
-                        <Text style={[
-                          styles.cell,
-                          { flex: 1 },
-                          item.status === "Pending"
-                            ? styles.pendingStatus
-                            : styles.successStatus,
-                        ]}>
-                          {item.status}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    ListEmptyComponent={() => (
-                      <Text style={{ color: "#999", alignSelf: "center", marginTop: 40 }}>
-                        No results found.
-                      </Text>
-                    )}
-                    contentContainerStyle={{}}
-                  />
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+      
 
-        {/* === PAYMENT DETAIL POPUP === */}
-        <Modal
-          visible={!!selectedPayment}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setSelectedPayment(null)}
-        >
-          <TouchableWithoutFeedback onPress={() => setSelectedPayment(null)}>
-            <View style={styles.detailModalBg}>
-              <TouchableWithoutFeedback>
-                <View style={styles.detailPopup}>
-                  <Text style={styles.detailTitle}>Payment Details</Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Payment ID: </Text>
-                    <Text style={styles.detailVal}>{selectedPayment?.id}</Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Date: </Text>
-                    <Text style={styles.detailVal}>{selectedPayment?.date}</Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Amount: </Text>
-                    <Text style={styles.detailVal}>Rs {money(selectedPayment?.amount || 0)}</Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Status: </Text>
-                    <Text style={[
-                      styles.detailVal,
-                      selectedPayment?.status === "Pending"
-                        ? styles.pendingStatus
-                        : styles.successStatus,
-                    ]}>
-                      {selectedPayment?.status}
-                    </Text>
-                  </Text>
-                  <Text style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Description: </Text>
-                    <Text style={styles.detailVal}>
-                      {selectedPayment?.description || "-"}
-                    </Text>
-                  </Text>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      </Modal>
+  {/* history sheet removed — using inline table on page */}
+
 
       {/* === SLIDE TO CONFIRM (COLLECTION) MODAL === */}
       <Modal
@@ -417,36 +255,53 @@ export default function WalletPage() {
           <View style={styles.slideModalBg}>
             <TouchableWithoutFeedback>
               <View style={styles.slideModal}>
+                <View style={{ width: '100%', marginBottom: 14 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#183d2b', alignSelf: 'center' }}>Collect Payment</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                    <Text style={{ fontSize: 16, color: '#222' }}>Amount</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#165E52' }}>Rs {money(collectAmount)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                    <Text style={{ fontSize: 15, color: '#666' }}>Date</Text>
+                    <Text style={{ fontSize: 15, color: '#666' }}>{collectDate}</Text>
+                  </View>
+                </View>
                 <SlideToConfirm
-                  unconfimredTipText="Slide to confirm Delivery"
+                  unconfimredTipText="Slide to collect payment"
                   confirmedTipText="Confirmed"
                   sliderStyle={{
-                    width: 220,
-                    height: 45,
-                    borderRadius: 27,
+                    width: sliderWidth,
+                    height: sliderHeight,
+                    borderRadius: Math.round(sliderHeight / 2),
                     backgroundColor: "#073229",
                     justifyContent: "center",
+                    paddingVertical: 0,
+                    paddingHorizontal: 0,
                   }}
                   unconfirmedTipTextStyle={{
                     color: "#fff",
-                    fontSize: 15,
-                    marginLeft: 14,
+                    fontSize: 17,
+                    marginLeft: Math.round(thumbSize / 2) + 6,
+                    lineHeight: sliderHeight - 12,
                   }}
                   confirmedTipTextStyle={{
                     color: "#fff",
-                    fontSize: 15,
-                    marginLeft: 14,
+                    fontSize: 17,
+                    marginLeft: Math.round(thumbSize / 2) + 6,
+                    lineHeight: sliderHeight - 12,
                   }}
                   thumbStyle={{
-                    backgroundColor: "#f4f1ef",
-                    width: 42,
-                    height: 42,
-                    borderRadius: 21,
+                    backgroundColor: "#fff",
+                    width: thumbSize,
+                    height: thumbSize,
+                    borderRadius: Math.round(thumbSize / 2),
                     alignItems: "center",
                     justifyContent: "center",
+                    margin: 0,
+                    padding: 0,
                   }}
                   thumbIcon={
-                    <Ionicons name="chevron-forward" size={28} color="#222" />
+                    <Ionicons name="chevron-forward" size={thumbIconSize} color="#222" />
                   }
                   onSlideConfirmed={() => {
                     setSlideConfirmed(true);
@@ -721,17 +576,22 @@ const styles = StyleSheet.create({
   detailLabel: { fontWeight: "600" },
   detailVal: { fontWeight: "400" },
   slideModalBg: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.10)",
-    justifyContent: "center",
-    alignItems: "center",
+  flex: 1,
+  backgroundColor: "rgba(0,0,0,0.10)",
+  justifyContent: "flex-end",
+  alignItems: "stretch",
   },
   slideModal: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 18,
-    alignItems: "center",
-    justifyContent: "center",
+  backgroundColor: "#fff",
+  borderTopLeftRadius: 18,
+  borderTopRightRadius: 18,
+  paddingTop: 18,
+  paddingHorizontal: 18,
+  paddingBottom: Platform.OS === 'ios' ? 54 : 34,
+  marginBottom: 8,
+  alignItems: "center",
+  justifyContent: "center",
+  width: '100%'
   },
 
 

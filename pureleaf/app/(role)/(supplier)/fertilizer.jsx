@@ -17,18 +17,30 @@ import { useRouter } from "expo-router";
 import SlideToConfirm from "rn-slide-to-confirm";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 import apiClient from "../../../services/apiClient";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createSupplierFertilizerRequest } from '../../../services/supplierService';
 
 
 // fertilizerTypes will be loaded from backend (FertilizerStockDisplayDTO)
 const defaultImage1 = require("../../../assets/images/fert1.jpg");
 const defaultImage2 = require("../../../assets/images/fert2.jpg");
+const defaultImage3 = require("../../../assets/images/fert3.jpg");
 
 function getImageForProduct(name) {
   if (!name) return defaultImage1;
   const n = name.toLowerCase();
   if (n.includes("urea")) return defaultImage1;
   if (n.includes("ammonium")) return defaultImage2;
-  return defaultImage1;
+  // For other fertilizers, pick one of the three images to add visual variety
+  const choices = [defaultImage1, defaultImage2, defaultImage3];
+  // Use a deterministic but varied selection based on name hash to avoid changing on every render
+  let hash = 0;
+  for (let i = 0; i < n.length; i++) {
+    hash = (hash << 5) - hash + n.charCodeAt(i);
+    hash |= 0; // convert to 32bit integer
+  }
+  const idx = Math.abs(hash) % choices.length;
+  return choices[idx];
 }
 
 export default function FertilizerPage() {
@@ -49,6 +61,7 @@ export default function FertilizerPage() {
 
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  const [placing, setPlacing] = useState(false);
 
   const refreshData = async () => {
   await fetchFertilizerTypes();
@@ -66,13 +79,22 @@ export default function FertilizerPage() {
       // Expected DTO: { fertilizerStockId, productName, weightPerQuantity, sellPrice }
       const data = Array.isArray(resp.data) ? resp.data : [];
       // Map to local shape used by UI (id, name, price, unit)
-      const mapped = data.map(d => ({
-        id: d.fertilizerStockId,
-        name: d.productName,
-        image: getImageForProduct(d.productName),
-        price: d.sellPrice ?? 0,
-        unit: d.weightPerQuantity ? `${d.weightPerQuantity}kg` : "",
-      }));
+      const choices = [defaultImage1, defaultImage2, defaultImage3];
+      const mapped = data.map((d, idx) => {
+        const name = d.productName || '';
+        const n = String(name).toLowerCase();
+        let image = choices[idx % choices.length];
+        // keep deterministic images for known keywords
+        if (n.includes('urea')) image = defaultImage1;
+        else if (n.includes('ammonium')) image = defaultImage2;
+        return {
+          id: d.fertilizerStockId,
+          name: d.productName,
+          image,
+          price: d.sellPrice ?? 0,
+          unit: d.weightPerQuantity ? `${d.weightPerQuantity}kg` : "",
+        };
+      });
       setFertilizerTypes(mapped);
     } catch (err) {
       console.error('Failed to fetch fertilizer types', err);
@@ -121,16 +143,58 @@ export default function FertilizerPage() {
   const removeFromWorkingCart = (id) => setWorkingCart(prev => prev.filter(p => p.id !== id));
 
   // Commit working cart to live cart. If creating, mark request placed. If editing, only replace cartItems.
-  const commitWorkingCart = () => {
+  const commitWorkingCart = async () => {
     if (workingCart.length === 0) {
       Alert.alert('No items', 'Please add fertilizers to your request.');
       return;
     }
-    setCartItems(workingCart.map(c => ({ ...c })));
-    if (selectionMode === 'create') {
-      setFertilizerState('placed');
+    // Build DTO
+    let supplierId = null;
+    try {
+      const supplierDataStr = await AsyncStorage.getItem('supplierData');
+      if (supplierDataStr) {
+        try {
+          const supplierData = JSON.parse(supplierDataStr);
+          if (Array.isArray(supplierData) && supplierData.length > 0) {
+            supplierId = supplierData[0].supplierId;
+          } else if (supplierData && supplierData.supplierId) {
+            supplierId = supplierData.supplierId;
+          }
+        } catch (e) {
+          supplierId = null;
+        }
+      }
+    } catch (e) {
+      supplierId = null;
     }
-    selectionSheetRef.current.close();
+    if (!supplierId) {
+      Alert.alert('Missing supplier', 'Cannot determine supplier ID.');
+      return;
+    }
+
+    const dto = {
+      supplierId,
+      requestDate: new Date().toISOString().slice(0, 10),
+      note: 'Requesting fertilizer',
+      items: workingCart.map(w => ({ fertilizerStockId: w.id, quantity: Number(w.qty) })),
+    };
+
+    setPlacing(true);
+    try {
+      const resp = await createSupplierFertilizerRequest(dto);
+      // Assume success if no exception; update UI
+      setCartItems(workingCart.map(c => ({ ...c })));
+      if (selectionMode === 'create') {
+        setFertilizerState('placed');
+      }
+      selectionSheetRef.current.close();
+      Alert.alert('Success', 'Fertilizer request placed successfully');
+    } catch (err) {
+      console.error('Failed to place fertilizer request', err);
+      Alert.alert('Error', 'Failed to place fertilizer request. Please try again.');
+    } finally {
+      setPlacing(false);
+    }
   };
 
   return (
@@ -165,7 +229,8 @@ export default function FertilizerPage() {
                   infoSheetRef.current.open();
                 }}
               >
-                <Image source={item.image} style={styles.fertilizerImage} />
+                {/* cycle images by index: 0->fert1,1->fert2,2->fert3,3->fert1... */}
+                <Image source={[defaultImage1, defaultImage2, defaultImage3][idx % 3]} style={styles.fertilizerImage} />
                 <View style={styles.fertilizerLabelOverlay}>
                   <Text style={styles.fertilizerLabelOverlayText}>
                     {item.name}
@@ -348,9 +413,9 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
         <Text style={{ color: '#900' }}>{error}</Text>
       </View>
     ) : (
-      fertilizerTypes.map((item) => (
+              fertilizerTypes.map((item, idx) => (
             <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: '#fff', padding: 8, borderRadius: 12 }}>
-              <Image source={item.image} style={{ width: 80, height: 60, borderRadius: 8 }} />
+              <Image source={[defaultImage1, defaultImage2, defaultImage3][idx % 3]} style={{ width: 80, height: 60, borderRadius: 8 }} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700' }}>{item.name}</Text>
                 <Text style={{ color: '#666' }}>Price : Rs.{item.price}.00  Unit weight :{item.unit}</Text>
@@ -403,8 +468,12 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
               <Text style={{ flex: 1.4, textAlign: 'right', fontSize: 18, fontWeight: '700' }}>{workingCart.reduce((s, i) => s + i.total, 0).toFixed(2)}</Text>
             </View>
 
-            <TouchableOpacity style={[styles.requestButton, { marginTop: 8, alignSelf: 'flex-end', marginBottom: 6 }]} onPress={commitWorkingCart}>
-              <Text style={styles.requestButtonText}>{selectionMode === 'edit' ? 'Edit Order' : 'Place Order'}</Text>
+            <TouchableOpacity style={[styles.requestButton, { marginTop: 8, alignSelf: 'flex-end', marginBottom: 6 }]} onPress={commitWorkingCart} disabled={placing}>
+              {placing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.requestButtonText}>{selectionMode === 'edit' ? 'Edit Order' : 'Place Order'}</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
