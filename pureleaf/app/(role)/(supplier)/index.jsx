@@ -22,6 +22,8 @@ import {
   updateTeaSupplyRequestBagCount,
   deleteTeaSupplyRequest,
   getDashboardSummary,
+  getDriverWeight,
+  getBagWeightsBySupplyRequest,
 } from "../../../services/supplierService";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
@@ -29,6 +31,8 @@ export default function SupplierHome({ navigation }) {
   const [userName, setUserName] = useState("");
   const sheetRef = useRef();
   const simSheetRef = useRef(); // <-- New ref for simulation sheet
+  const weightDetailsSheetRef = useRef(); // <-- New ref for driver weight details sheet
+  const factoryWeightDetailsSheetRef = useRef(); // <-- New ref for factory weight details sheet
   const router = useRouter();
 
   const [supplyState, setSupplyState] = useState("none"); // 'none', 'input', 'placed', 'driver', 'factory'
@@ -47,6 +51,36 @@ export default function SupplierHome({ navigation }) {
     approvedCashAdvancePayments: 0,
     approvedLoanPayments: 0,
   });
+
+  const [weightData, setWeightData] = useState({
+    driverWeight: null,
+    factoryWeight: null,
+    coarse: false,
+    wet: false,
+  });
+
+  const [factoryWeightDetails, setFactoryWeightDetails] = useState({
+    grossWeight: null,
+    netWeight: null,
+    water: null,
+    coarse: null,
+  });
+
+  // Helper function to get quality status based on wet and coarse
+  const getQualityStatus = (wet, coarse) => {
+    const hasWet = wet === true || wet === "true";
+    const hasCoarse = coarse === true || coarse === "true";
+
+    if (hasWet && hasCoarse) {
+      return { label: "WET / COARSE", color: "#d32f2f" }; // Red
+    } else if (hasWet) {
+      return { label: "WET", color: "#f57c00" }; // Orange
+    } else if (hasCoarse) {
+      return { label: "COARSE", color: "#f57c00" }; // Orange
+    } else {
+      return { label: "GOOD", color: "#2e7d32" }; // Green
+    }
+  };
 
   const loadUserName = React.useCallback(async () => {
     try {
@@ -155,11 +189,175 @@ export default function SupplierHome({ navigation }) {
     }
   }, []);
 
+  const fetchWeightData = React.useCallback(async () => {
+    try {
+      if (!todayRequestId) {
+        console.log("[Weight] No todayRequestId available");
+        return;
+      }
+
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        try {
+          const supplierData = JSON.parse(supplierDataStr);
+          if (Array.isArray(supplierData) && supplierData.length > 0) {
+            supplierId = supplierData[0].supplierId;
+          } else if (supplierData && supplierData.supplierId) {
+            supplierId = supplierData.supplierId;
+          }
+        } catch (_error) {
+          supplierId = null;
+        }
+      }
+
+      if (!supplierId) {
+        console.log("[Weight] No supplierId available");
+        return;
+      }
+
+      console.log(
+        `[Weight] Fetching weight data for requestId: ${todayRequestId}, supplierId: ${supplierId}`
+      );
+      const response = await getDriverWeight(todayRequestId, supplierId);
+      const data = response.data;
+      console.log("[Weight] API Response:", JSON.stringify(data));
+
+      if (Array.isArray(data) && data.length > 0) {
+        const weightInfo = data[0];
+        console.log("[Weight] Weight Info (raw):", JSON.stringify(weightInfo));
+
+        // Helper function to parse weight values
+        const parseWeight = (value) => {
+          if (value === null || value === undefined) return null;
+          if (value === "false" || value === false) return null;
+          const parsed = parseFloat(value);
+          return !isNaN(parsed) ? parsed : null;
+        };
+
+        // Helper function to parse boolean values
+        const parseBoolean = (value) => {
+          if (value === true || value === "true") return true;
+          if (value === false || value === "false") return false;
+          return false; // default to false if null/undefined
+        };
+
+        const parsedData = {
+          driverWeight: parseWeight(weightInfo.driverWeight),
+          factoryWeight: parseWeight(weightInfo.factoryWeight),
+          coarse: parseBoolean(weightInfo.coarse),
+          wet: parseBoolean(weightInfo.wet),
+        };
+
+        console.log(
+          "[Weight] Weight Info (parsed):",
+          JSON.stringify(parsedData)
+        );
+        setWeightData(parsedData);
+        console.log("[Weight] Weight data updated successfully");
+      } else {
+        console.log("[Weight] No weight data found in response");
+      }
+    } catch (error) {
+      console.error("Error fetching weight data:", error);
+      console.error("Error details:", error.response?.data || error.message);
+    }
+  }, [todayRequestId]);
+
+  const fetchFactoryWeightDetails = React.useCallback(async () => {
+    try {
+      if (!todayRequestId) {
+        console.log("[Factory Weight] No todayRequestId available");
+        return;
+      }
+
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        try {
+          const supplierData = JSON.parse(supplierDataStr);
+          if (Array.isArray(supplierData) && supplierData.length > 0) {
+            supplierId = supplierData[0].supplierId;
+          } else if (supplierData && supplierData.supplierId) {
+            supplierId = supplierData.supplierId;
+          }
+        } catch (_error) {
+          supplierId = null;
+        }
+      }
+
+      if (!supplierId) {
+        console.log("[Factory Weight] No supplierId available");
+        return;
+      }
+
+      console.log(
+        `[Factory Weight] Fetching factory weight details for requestId: ${todayRequestId}, supplierId: ${supplierId}`
+      );
+      const response = await getBagWeightsBySupplyRequest(
+        todayRequestId,
+        supplierId
+      );
+      const data = response.data;
+      console.log("[Factory Weight] API Response:", JSON.stringify(data));
+
+      // Handle array response - take the first item
+      const factoryData =
+        Array.isArray(data) && data.length > 0 ? data[0] : data;
+
+      if (factoryData && typeof factoryData === "object") {
+        const parseWeight = (value) => {
+          if (value === null || value === undefined) return null;
+          const parsed = parseFloat(value);
+          return !isNaN(parsed) ? parsed : null;
+        };
+
+        const factoryDetails = {
+          grossWeight: parseWeight(factoryData.grossWeight),
+          netWeight: parseWeight(factoryData.netWeight),
+          water: parseWeight(factoryData.water),
+          coarse: parseWeight(factoryData.coarse),
+        };
+
+        console.log(
+          "[Factory Weight] Factory weight details (parsed):",
+          JSON.stringify(factoryDetails)
+        );
+        setFactoryWeightDetails(factoryDetails);
+
+        // Also update factoryWeight in weightData
+        setWeightData((prev) => ({
+          ...prev,
+          factoryWeight: factoryDetails.netWeight,
+        }));
+
+        console.log(
+          "[Factory Weight] Factory weight details updated successfully"
+        );
+      } else {
+        console.log(
+          "[Factory Weight] No factory weight data found in response"
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching factory weight details:", error);
+      console.error("Error details:", error.response?.data || error.message);
+    }
+  }, [todayRequestId]);
+
   const refreshData = React.useCallback(async () => {
     await loadUserName();
     await fetchSupplierRequests();
     await fetchDashboardSummary();
-  }, [loadUserName, fetchSupplierRequests, fetchDashboardSummary]);
+    await fetchWeightData();
+    await fetchFactoryWeightDetails();
+  }, [
+    loadUserName,
+    fetchSupplierRequests,
+    fetchDashboardSummary,
+    fetchWeightData,
+    fetchFactoryWeightDetails,
+  ]);
 
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
 
@@ -169,6 +367,14 @@ export default function SupplierHome({ navigation }) {
     fetchSupplierRequests();
     fetchDashboardSummary();
   }, [loadUserName, fetchSupplierRequests, fetchDashboardSummary]);
+
+  // Fetch weight data when todayRequestId changes
+  useEffect(() => {
+    if (todayRequestId) {
+      fetchWeightData();
+      fetchFactoryWeightDetails();
+    }
+  }, [todayRequestId, fetchWeightData, fetchFactoryWeightDetails]);
 
   // Open the modal for entering supply
   const openSupplyModal = () => {
@@ -253,18 +459,15 @@ export default function SupplierHome({ navigation }) {
 
   const handleCancel = async () => {
     // Always attempt to delete from backend if todayRequestId exists
-    let deleted = false;
     if (todayRequestId) {
       try {
         await deleteTeaSupplyRequest(todayRequestId);
-        deleted = true;
       } catch (_error) {
         // Could not delete from backend
       }
     } else if (requestId) {
       try {
         await deleteTeaSupplyRequest(requestId);
-        deleted = true;
       } catch (_error) {
         // Could not delete from backend
       }
@@ -273,6 +476,12 @@ export default function SupplierHome({ navigation }) {
     setTodayBagCount(null);
     setRequestId(null);
     setLastBagCount(null);
+    setWeightData({
+      driverWeight: null,
+      factoryWeight: null,
+      coarse: false,
+      wet: false,
+    });
     setSupplyState("none");
     sheetRef.current?.close();
   };
@@ -325,16 +534,33 @@ export default function SupplierHome({ navigation }) {
           <Text style={styles.sheetTitle}>
             {lastBagCount} <Text style={styles.supplyUnit}>bags</Text>
           </Text>
-          <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 16 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+              marginTop: 16,
+            }}
+          >
             <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: requestId ? "#183d2b" : "#bbb", marginRight: 10, maxWidth: 120 }]}
+              style={[
+                styles.sheetBtn,
+                {
+                  backgroundColor: requestId ? "#183d2b" : "#bbb",
+                  marginRight: 10,
+                  maxWidth: 120,
+                },
+              ]}
               onPress={handleEdit}
               disabled={!requestId}
             >
               <Text style={styles.sheetBtnText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: "#590804", maxWidth: 120 }]}
+              style={[
+                styles.sheetBtn,
+                { backgroundColor: "#590804", maxWidth: 120 },
+              ]}
               onPress={handleCancel}
             >
               <Text style={styles.sheetBtnText}>Delete</Text>
@@ -342,7 +568,10 @@ export default function SupplierHome({ navigation }) {
           </View>
           {new Date().getHours() >= 16 && (
             <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: "#fff", marginTop: 18 }]}
+              style={[
+                styles.sheetBtn,
+                { backgroundColor: "#fff", marginTop: 18 },
+              ]}
               onPress={() => {
                 setSupplyState("driver");
                 sheetRef.current.close();
@@ -534,6 +763,158 @@ export default function SupplierHome({ navigation }) {
     ["placed", "driver", "factory", "factoryReached"].includes(supplyState) &&
     lastBagCount;
 
+  // Open weight details sheet
+  const openWeightDetailsSheet = () => {
+    weightDetailsSheetRef.current.open();
+  };
+
+  // Open factory weight details sheet
+  const openFactoryWeightDetailsSheet = () => {
+    factoryWeightDetailsSheetRef.current.open();
+  };
+
+  // Weight Details Sheet Content
+  const renderWeightDetailsSheet = () => {
+    const hasDriverWeight =
+      weightData.driverWeight !== null && weightData.driverWeight !== undefined;
+    const qualityStatus = getQualityStatus(weightData.wet, weightData.coarse);
+
+    return (
+      <View style={styles.weightDetailsContent}>
+        <Text style={styles.weightDetailsTitle}>Driver Weight Details</Text>
+
+        <View style={styles.weightDetailRow}>
+          <Text style={styles.weightDetailLabel}>Total Weight:</Text>
+          <Text style={styles.weightDetailValue}>
+            {hasDriverWeight ? weightData.driverWeight.toFixed(1) : "0.0"} kg
+          </Text>
+        </View>
+
+        <View style={styles.weightDetailRow}>
+          <Text style={styles.weightDetailLabel}>Quality Status:</Text>
+          <View
+            style={[
+              styles.qualityBadgeInline,
+              { backgroundColor: qualityStatus.color },
+            ]}
+          >
+            <Text style={styles.qualityBadgeText}>{qualityStatus.label}</Text>
+          </View>
+        </View>
+
+        {/* Show detailed status info */}
+        <View style={styles.statusInfoContainer}>
+          <View style={styles.statusInfoRow}>
+            <Text style={styles.statusInfoLabel}>Wet:</Text>
+            <Text
+              style={[
+                styles.statusInfoValue,
+                weightData.wet ? styles.statusTrue : styles.statusFalse,
+              ]}
+            >
+              {weightData.wet ? "Yes" : "No"}
+            </Text>
+          </View>
+          <View style={styles.statusInfoRow}>
+            <Text style={styles.statusInfoLabel}>Coarse:</Text>
+            <Text
+              style={[
+                styles.statusInfoValue,
+                weightData.coarse ? styles.statusTrue : styles.statusFalse,
+              ]}
+            >
+              {weightData.coarse ? "Yes" : "No"}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.closeDetailsBtn}
+          onPress={() => weightDetailsSheetRef.current.close()}
+        >
+          <Text style={styles.closeDetailsBtnText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Factory Weight Details Sheet Content
+  const renderFactoryWeightDetailsSheet = () => {
+    const hasGrossWeight = factoryWeightDetails.grossWeight !== null;
+    const hasNetWeight = factoryWeightDetails.netWeight !== null;
+    const hasWater = factoryWeightDetails.water !== null;
+    const hasCoarse = factoryWeightDetails.coarse !== null;
+
+    return (
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom: 24,
+        }}
+        showsVerticalScrollIndicator={true}
+      >
+        <View style={styles.weightDetailsContent}>
+          <Text style={styles.weightDetailsTitle}>Factory Weight Details</Text>
+
+          {hasGrossWeight && (
+            <View style={styles.weightDetailRow}>
+              <Text style={styles.weightDetailLabel}>Gross Weight:</Text>
+              <Text style={styles.weightDetailValue}>
+                {factoryWeightDetails.grossWeight.toFixed(1)} kg
+              </Text>
+            </View>
+          )}
+
+          {hasNetWeight && (
+            <View style={styles.weightDetailRow}>
+              <Text style={styles.weightDetailLabel}>Net Weight:</Text>
+              <Text style={styles.weightDetailValue}>
+                {factoryWeightDetails.netWeight.toFixed(1)} kg
+              </Text>
+            </View>
+          )}
+
+          {hasWater && (
+            <View style={styles.weightDetailRow}>
+              <Text style={styles.weightDetailLabel}>Water:</Text>
+              <Text style={styles.weightDetailValue}>
+                {factoryWeightDetails.water.toFixed(1)} kg
+              </Text>
+            </View>
+          )}
+
+          {hasCoarse && (
+            <View style={styles.weightDetailRow}>
+              <Text style={styles.weightDetailLabel}>Coarse:</Text>
+              <Text style={styles.weightDetailValue}>
+                {factoryWeightDetails.coarse.toFixed(1)} kg
+              </Text>
+            </View>
+          )}
+
+          {!hasGrossWeight && !hasNetWeight && !hasWater && !hasCoarse && (
+            <View style={styles.noDetailsContainer}>
+              <Text style={styles.noDetailsText}>
+                No factory weight data available
+              </Text>
+              <Text style={styles.noDetailsSubText}>
+                Factory weight details will appear here once processing is
+                complete
+              </Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.closeDetailsBtn}
+            onPress={() => factoryWeightDetailsSheetRef.current.close()}
+          >
+            <Text style={styles.closeDetailsBtnText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  };
+
   // Simulation Sheet Content
   const renderSimulationSheet = () => (
     <ScrollView
@@ -703,6 +1084,79 @@ export default function SupplierHome({ navigation }) {
           </View>
         </TouchableOpacity>
 
+        {/* Weight Cards - Driver and Factory */}
+        {(weightData.driverWeight !== null ||
+          weightData.factoryWeight !== null) && (
+          <View style={styles.weightCardsContainer}>
+            {weightData.driverWeight !== null &&
+              typeof weightData.driverWeight === "number" && (
+                <TouchableOpacity
+                  style={styles.weightCard}
+                  onPress={openWeightDetailsSheet}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.weightCardLabel}>Driver Weight</Text>
+                  <Text style={styles.weightCardValue}>
+                    {weightData.driverWeight.toFixed(1)}{" "}
+                    <Text style={styles.weightCardUnit}>kg</Text>
+                  </Text>
+                  {/* Quality Status Badge */}
+                  {(() => {
+                    const status = getQualityStatus(
+                      weightData.wet,
+                      weightData.coarse
+                    );
+                    return (
+                      <View
+                        style={[
+                          styles.qualityBadge,
+                          { backgroundColor: status.color },
+                        ]}
+                      >
+                        <Text style={styles.qualityBadgeText}>
+                          {status.label}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+                  <Text style={styles.tapForDetailsText}>Tap for details</Text>
+                </TouchableOpacity>
+              )}
+
+            {/* Factory Weight Card - Show when weight is available */}
+            {weightData.factoryWeight !== null &&
+              typeof weightData.factoryWeight === "number" && (
+                <TouchableOpacity
+                  style={styles.weightCard}
+                  onPress={openFactoryWeightDetailsSheet}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.weightCardLabel}>Factory Weight</Text>
+                  <Text style={styles.weightCardValue}>
+                    {weightData.factoryWeight.toFixed(1)}{" "}
+                    <Text style={styles.weightCardUnit}>kg</Text>
+                  </Text>
+                  <Text style={styles.tapForDetailsText}>Tap for details</Text>
+                </TouchableOpacity>
+              )}
+
+            {/* Factory Weight Card - Show pending state when request exists but no factory weight yet */}
+            {todayRequestId &&
+              (weightData.factoryWeight === null ||
+                typeof weightData.factoryWeight !== "number") && (
+                <View style={[styles.weightCard, styles.pendingWeightCard]}>
+                  <Text style={styles.weightCardLabel}>Factory Weight</Text>
+                  <Text style={[styles.weightCardValue, styles.pendingText]}>
+                    Pending
+                  </Text>
+                  <Text style={styles.pendingSubtext}>
+                    Processing at factory
+                  </Text>
+                </View>
+              )}
+          </View>
+        )}
+
         {/* Supply Button (hide after confirming) */}
         {supplyState === "none" && !todayRequestId && !isLoadingToday && (
           <TouchableOpacity style={styles.supplyBtn} onPress={openSupplyModal}>
@@ -792,6 +1246,40 @@ export default function SupplierHome({ navigation }) {
         height={340}
       >
         {renderSimulationSheet()}
+      </RBSheet>
+
+      {/* Weight Details Bottom Sheet */}
+      <RBSheet
+        ref={weightDetailsSheetRef}
+        closeOnDragDown={true}
+        closeOnPressMask={true}
+        customStyles={{
+          wrapper: { backgroundColor: "rgba(0,0,0,0.4)" },
+          draggableIcon: { backgroundColor: "#bbb" },
+          container: {
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+          },
+        }}
+        height={400}
+      >
+        {renderWeightDetailsSheet()}
+      </RBSheet>
+
+      {/* Factory Weight Details Bottom Sheet */}
+      <RBSheet
+        ref={factoryWeightDetailsSheetRef}
+        customStyles={{
+          container: {
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+          },
+        }}
+        height={450}
+      >
+        {renderFactoryWeightDetailsSheet()}
       </RBSheet>
     </View>
   );
@@ -982,6 +1470,58 @@ const styles = StyleSheet.create({
     color: "#165E52",
     fontSize: 30,
     fontWeight: "700",
+  },
+
+  // Weight Cards Container
+  weightCardsContainer: {
+    flexDirection: "row",
+    marginHorizontal: 18,
+    marginTop: 0,
+    marginBottom: 10,
+    gap: 8,
+  },
+  weightCard: {
+    flex: 1,
+    backgroundColor: "#eaf2ea",
+    borderRadius: 16,
+    padding: 16,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#b0c2b0",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 100,
+  },
+  weightCardLabel: {
+    color: "#222",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  weightCardValue: {
+    color: "#000",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  weightCardUnit: {
+    fontSize: 12,
+    color: "#888",
+    fontWeight: "400",
+  },
+  weightCardDetails: {
+    marginTop: 8,
+    alignItems: "center",
+  },
+  weightCardDetailText: {
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
   },
 
   // Supply Button
@@ -1177,5 +1717,149 @@ const styles = StyleSheet.create({
     color: "#183d2b",
     fontSize: 18,
     fontWeight: "700",
+  },
+
+  // Weight Details Sheet Styles
+  weightDetailsContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+  },
+  weightDetailsTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginBottom: 24,
+  },
+  weightDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 300,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  weightDetailLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#555",
+  },
+  weightDetailValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#183d2b",
+  },
+  noDetailsContainer: {
+    alignItems: "center",
+    marginTop: 12,
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  noDetailsText: {
+    fontSize: 14,
+    color: "#888",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  noDetailsSubText: {
+    fontSize: 12,
+    color: "#aaa",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  closeDetailsBtn: {
+    backgroundColor: "#183d2b",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    marginTop: 24,
+  },
+  closeDetailsBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  tapForDetailsText: {
+    fontSize: 9,
+    color: "#888",
+    marginTop: 4,
+    textAlign: "center",
+  },
+
+  // Pending Weight Card Styles
+  pendingWeightCard: {
+    backgroundColor: "#f9f9f9",
+    borderColor: "#e0e0e0",
+    borderWidth: 1,
+  },
+  pendingText: {
+    color: "#999",
+    fontSize: 18,
+  },
+  pendingSubtext: {
+    fontSize: 10,
+    color: "#aaa",
+    marginTop: 4,
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+
+  // Quality Badge Styles
+  qualityBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginTop: 4,
+    alignSelf: "center",
+  },
+  qualityBadgeInline: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  qualityBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  // Status Info Styles
+  statusInfoContainer: {
+    width: "100%",
+    maxWidth: 300,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  statusInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  statusInfoLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#555",
+  },
+  statusInfoValue: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  statusTrue: {
+    color: "#d32f2f",
+  },
+  statusFalse: {
+    color: "#2e7d32",
   },
 });

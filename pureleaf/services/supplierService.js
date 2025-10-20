@@ -98,10 +98,9 @@ export const getDailySummary = (supplierId, month, year) =>
     `/api/factory-dashboard/supplier/${supplierId}/daily-summary?month=${month + 1}&year=${year}`
   );
 
-
-  // Create supplier fertilizer request
+// Create supplier fertilizer request
 export const createSupplierFertilizerRequest = (dto) =>
-  apiClient.post('/api/supplier-fertilizer-requests', dto);
+  apiClient.post("/api/supplier-fertilizer-requests", dto);
 
 // Get payment history for a supplier
 export const getPaymentHistory = (supplierId, month, year) =>
@@ -115,4 +114,14 @@ export const getDashboardSummary = (supplierId, month, year) =>
     `/api/supplier/payments/dashboard-summary?supplierId=${supplierId}&month=${month}&year=${year}`
   );
 
+// Get driver weight for a supply request
+export const getDriverWeight = (requestId, supplierId) =>
+  apiClient.get(
+    `/api/trip-bags/driver-weight?requestId=${requestId}&supplierId=${supplierId}`
+  );
 
+// Get bag weights for a supply request (factory weight details)
+export const getBagWeightsBySupplyRequest = (requestId, supplierId) =>
+  apiClient.get(
+    `/api/bag-weights/by-supply-request?requestId=${requestId}&supplierId=${supplierId}`
+  );
