@@ -112,10 +112,19 @@ export default function SignupBasicForm() {
       }
     } catch (error) {
       console.error("Signup error:", error);
-      setMessage({
-        type: "error",
-        text: error.response?.data || error.message || "Something went wrong",
-      });
+      let errorMessage = "Something went wrong";
+      if (error.response?.data) {
+        if (typeof error.response.data === "string") {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else {
+          errorMessage = JSON.stringify(error.response.data);
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      setMessage({ type: "error", text: errorMessage });
     } finally {
       setLoading(false);
     }

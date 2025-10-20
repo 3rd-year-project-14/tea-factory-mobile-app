@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from "react";
 import {
   View,
@@ -17,9 +16,8 @@ import { useRouter } from "expo-router";
 import SlideToConfirm from "rn-slide-to-confirm";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 import apiClient from "../../../services/apiClient";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createSupplierFertilizerRequest } from '../../../services/supplierService';
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createSupplierFertilizerRequest } from "../../../services/supplierService";
 
 // fertilizerTypes will be loaded from backend (FertilizerStockDisplayDTO)
 const defaultImage1 = require("../../../assets/images/fert1.jpg");
@@ -49,13 +47,13 @@ export default function FertilizerPage() {
   const selectionSheetRef = useRef();
   const [selectedInfoFertilizer, setSelectedInfoFertilizer] = useState(null);
 
-  const [fertilizerState, setFertilizerState] = useState('none'); // 'none', 'placed', 'driver', 'pending'
+  const [fertilizerState, setFertilizerState] = useState("none"); // 'none', 'placed', 'driver', 'pending'
   const [cartItems, setCartItems] = useState([]);
   const [fertilizerTypes, setFertilizerTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   // selectionMode: 'create' when making a new request, 'edit' when editing an existing request
-  const [selectionMode, setSelectionMode] = useState('create');
+  const [selectionMode, setSelectionMode] = useState("create");
   // working cart that is edited inside the selection popup; changes are committed to cartItems only when user confirms
   const [workingCart, setWorkingCart] = useState([]);
 
@@ -64,7 +62,7 @@ export default function FertilizerPage() {
   const [placing, setPlacing] = useState(false);
 
   const refreshData = async () => {
-  await fetchFertilizerTypes();
+    await fetchFertilizerTypes();
   };
 
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
@@ -75,7 +73,9 @@ export default function FertilizerPage() {
       setLoading(true);
       const params = {};
       if (supplierId) params.supplierId = supplierId;
-      const resp = await apiClient.get('/api/fertilizer-stocks/display', { params });
+      const resp = await apiClient.get("/api/fertilizer-stocks/display", {
+        params,
+      });
       // Expected DTO: { fertilizerStockId, productName, weightPerQuantity, sellPrice }
       const data = Array.isArray(resp.data) ? resp.data : [];
       // Map to local shape used by UI (id, name, price, unit)
@@ -97,8 +97,8 @@ export default function FertilizerPage() {
       });
       setFertilizerTypes(mapped);
     } catch (err) {
-      console.error('Failed to fetch fertilizer types', err);
-      setError('Failed to load fertilizers');
+      console.error("Failed to fetch fertilizer types", err);
+      setError("Failed to load fertilizers");
     } finally {
       setLoading(false);
     }
@@ -113,11 +113,11 @@ export default function FertilizerPage() {
   };
 
   // Open the selection modal
-  const openSelectionModal = (mode = 'create') => {
+  const openSelectionModal = (mode = "create") => {
     setSelectionMode(mode);
-    if (mode === 'edit') {
+    if (mode === "edit") {
       // copy current cart into working cart for edit
-      setWorkingCart(cartItems.map(c => ({ ...c })));
+      setWorkingCart(cartItems.map((c) => ({ ...c })));
     } else {
       setWorkingCart([]);
     }
@@ -127,25 +127,43 @@ export default function FertilizerPage() {
   // Working-cart operations (used inside selection sheet). These don't mutate the live request until committed.
   const addToWorkingCart = (item, qty) => {
     if (!qty || qty <= 0) return;
-    setWorkingCart(prev => {
-      const existing = prev.find(p => p.id === item.id);
+    setWorkingCart((prev) => {
+      const existing = prev.find((p) => p.id === item.id);
       if (existing) {
-        return prev.map(p => p.id === item.id ? { ...p, qty: p.qty + qty, total: (p.qty + qty) * p.price } : p);
+        return prev.map((p) =>
+          p.id === item.id
+            ? { ...p, qty: p.qty + qty, total: (p.qty + qty) * p.price }
+            : p
+        );
       }
-      return [...prev, { id: item.id, name: item.name, unit: item.unit, price: item.price, qty, total: qty * item.price }];
+      return [
+        ...prev,
+        {
+          id: item.id,
+          name: item.name,
+          unit: item.unit,
+          price: item.price,
+          qty,
+          total: qty * item.price,
+        },
+      ];
     });
   };
 
   const updateWorkingQty = (id, newQty) => {
-    setWorkingCart(prev => prev.map(p => p.id === id ? { ...p, qty: newQty, total: newQty * p.price } : p).filter(p => p.qty > 0));
+    setWorkingCart((prev) =>
+      prev
+        .map((p) =>
+          p.id === id ? { ...p, qty: newQty, total: newQty * p.price } : p
+        )
+        .filter((p) => p.qty > 0)
+    );
   };
-
-  const removeFromWorkingCart = (id) => setWorkingCart(prev => prev.filter(p => p.id !== id));
 
   // Commit working cart to live cart. If creating, mark request placed. If editing, only replace cartItems.
   const commitWorkingCart = async () => {
     if (workingCart.length === 0) {
-      Alert.alert('No items', 'Please add fertilizers to your request.');
+      Alert.alert("No items", "Please add fertilizers to your request.");
       return;
     }
     // Build DTO
@@ -212,12 +230,19 @@ export default function FertilizerPage() {
         <View style={styles.sliderRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {loading ? (
-              <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+              <View
+                style={{
+                  width: CARD_WIDTH,
+                  height: CARD_HEIGHT,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
                 <ActivityIndicator size="small" color="#183d2b" />
               </View>
             ) : error ? (
               <View style={{ padding: 12 }}>
-                <Text style={{ color: '#900' }}>{error}</Text>
+                <Text style={{ color: "#900" }}>{error}</Text>
               </View>
             ) : (
               fertilizerTypes.map((item, idx) => (
@@ -280,21 +305,48 @@ export default function FertilizerPage() {
               {fertilizerState === 'rejected' && 'Request rejected'}
             </Text>
             {/* Small cart preview */}
-            <View style={{ backgroundColor: '#fff', padding: 8, borderRadius: 8, marginTop: 10 }}>
+            <View
+              style={{
+                backgroundColor: "#fff",
+                padding: 8,
+                borderRadius: 8,
+                marginTop: 10,
+              }}
+            >
               {cartItems.slice(0, 3).map((c, i) => (
-                <View key={c.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-                  <Text style={{ color: '#222' }}>{String(i + 1).padStart(2, '0')} {c.name}</Text>
-                  <Text style={{ color: '#222' }}>{c.qty} x {c.unit}</Text>
+                <View
+                  key={c.id}
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ color: "#222" }}>
+                    {String(i + 1).padStart(2, "0")} {c.name}
+                  </Text>
+                  <Text style={{ color: "#222" }}>
+                    {c.qty} x {c.unit}
+                  </Text>
                 </View>
               ))}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                <Text style={{ fontWeight: '700' }}>Sub Total</Text>
-                <Text style={{ fontWeight: '700' }}>Rs. {cartItems.reduce((s, i) => s + i.total, 0).toFixed(2)}</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginTop: 6,
+                }}
+              >
+                <Text style={{ fontWeight: "700" }}>Sub Total</Text>
+                <Text style={{ fontWeight: "700" }}>
+                  Rs. {cartItems.reduce((s, i) => s + i.total, 0).toFixed(2)}
+                </Text>
               </View>
             </View>
-            {fertilizerState === 'driver' && (
-              <Text style={styles.reqCardDate}>Arriving at <Text style={{fontWeight:'bold'}}>5:45PM</Text></Text>
-
+            {fertilizerState === "driver" && (
+              <Text style={styles.reqCardDate}>
+                Arriving at <Text style={{ fontWeight: "bold" }}>5:45PM</Text>
+              </Text>
             )}
             {fertilizerState === "pending" && (
               <Text style={styles.reqCardDate}>Collect your Fertilizers</Text>
@@ -394,9 +446,14 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
         closeOnDragDown={true}
         closeOnPressMask={true}
         customStyles={{
-          wrapper: { backgroundColor: 'rgba(0,0,0,0.4)' },
-          draggableIcon: { backgroundColor: '#bbb' },
-          container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, minHeight: 300 },
+          wrapper: { backgroundColor: "rgba(0,0,0,0.4)" },
+          draggableIcon: { backgroundColor: "#bbb" },
+          container: {
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 16,
+            minHeight: 300,
+          },
         }}
         height={520}
       >
@@ -429,43 +486,153 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
                 </TouchableOpacity>
               </View>
             </View>
-          ))
-    )}
+          ) : error ? (
+            <View style={{ padding: 12 }}>
+              <Text style={{ color: "#900" }}>{error}</Text>
+            </View>
+          ) : (
+            fertilizerTypes.map((item) => (
+              <View
+                key={item.id}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 12,
+                  backgroundColor: "#fff",
+                  padding: 8,
+                  borderRadius: 12,
+                }}
+              >
+                <Image
+                  source={item.image}
+                  style={{ width: 80, height: 60, borderRadius: 8 }}
+                />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700" }}>
+                    {item.name}
+                  </Text>
+                  <Text style={{ color: "#666" }}>
+                    Price : Rs.{item.price}.00 Unit weight :{item.unit}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.sheetBtn,
+                      { minWidth: 80, backgroundColor: "#183d2b" },
+                    ]}
+                    onPress={() => addToWorkingCart(item, 1)}
+                  >
+                    <Text style={styles.sheetBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
 
           {/* Cart table */}
-          <View style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 12, padding: 8 }}>
-            <View style={{ flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-              <Text style={{ flex: 0.6, fontWeight: '700' }}>No</Text>
-              <Text style={{ flex: 3, fontWeight: '700' }}>Name</Text>
-              <Text style={{ flex: 1.4, textAlign: 'center', fontWeight: '700' }}>Quantity</Text>
-              <Text style={{ flex: 1.4, textAlign: 'right', fontWeight: '700' }}>Total (Rs)</Text>
+          <View
+            style={{
+              marginTop: 8,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 8,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                paddingVertical: 6,
+                borderBottomWidth: 1,
+                borderBottomColor: "#eee",
+              }}
+            >
+              <Text style={{ flex: 0.6, fontWeight: "700" }}>No</Text>
+              <Text style={{ flex: 3, fontWeight: "700" }}>Name</Text>
+              <Text
+                style={{ flex: 1.4, textAlign: "center", fontWeight: "700" }}
+              >
+                Quantity
+              </Text>
+              <Text
+                style={{ flex: 1.4, textAlign: "right", fontWeight: "700" }}
+              >
+                Total (Rs)
+              </Text>
             </View>
             {workingCart.length === 0 && (
               <View style={{ padding: 12 }}>
-                <Text style={{ color: '#666' }}>No items added</Text>
+                <Text style={{ color: "#666" }}>No items added</Text>
               </View>
             )}
 
             {workingCart.map((row, idx) => (
-              <View key={row.id} style={{ flexDirection: 'row', paddingVertical: 10, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#fafafa' }}>
-                <Text style={{ flex: 0.6 }}>{String(idx + 1).padStart(2, '0')}</Text>
-                <Text style={{ flex: 3 }}>{row.name} {row.unit}</Text>
-                <View style={{ flex: 1.4, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-                  <TouchableOpacity onPress={() => updateWorkingQty(row.id, Math.max(0, row.qty - 1))} style={{ paddingHorizontal: 8 }}>
+              <View
+                key={row.id}
+                style={{
+                  flexDirection: "row",
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#fafafa",
+                }}
+              >
+                <Text style={{ flex: 0.6 }}>
+                  {String(idx + 1).padStart(2, "0")}
+                </Text>
+                <Text style={{ flex: 3 }}>
+                  {row.name} {row.unit}
+                </Text>
+                <View
+                  style={{
+                    flex: 1.4,
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() =>
+                      updateWorkingQty(row.id, Math.max(0, row.qty - 1))
+                    }
+                    style={{ paddingHorizontal: 8 }}
+                  >
                     <Text style={{ fontSize: 20 }}>−</Text>
                   </TouchableOpacity>
                   <Text style={{ marginHorizontal: 6 }}>{row.qty}</Text>
-                  <TouchableOpacity onPress={() => updateWorkingQty(row.id, row.qty + 1)} style={{ paddingHorizontal: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => updateWorkingQty(row.id, row.qty + 1)}
+                    style={{ paddingHorizontal: 8 }}
+                  >
                     <Text style={{ fontSize: 20 }}>+</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={{ flex: 1.4, textAlign: 'right' }}>{row.total.toFixed(2)}</Text>
+                <Text style={{ flex: 1.4, textAlign: "right" }}>
+                  {row.total.toFixed(2)}
+                </Text>
               </View>
             ))}
 
-            <View style={{ flexDirection: 'row', paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ flex: 3, fontSize: 18, fontWeight: '700' }}>Sub Total</Text>
-              <Text style={{ flex: 1.4, textAlign: 'right', fontSize: 18, fontWeight: '700' }}>{workingCart.reduce((s, i) => s + i.total, 0).toFixed(2)}</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                paddingVertical: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ flex: 3, fontSize: 18, fontWeight: "700" }}>
+                Sub Total
+              </Text>
+              <Text
+                style={{
+                  flex: 1.4,
+                  textAlign: "right",
+                  fontSize: 18,
+                  fontWeight: "700",
+                }}
+              >
+                {workingCart.reduce((s, i) => s + i.total, 0).toFixed(2)}
+              </Text>
             </View>
 
             <TouchableOpacity style={[styles.requestButton, { marginTop: 8, alignSelf: 'flex-end', marginBottom: 6 }]} onPress={commitWorkingCart} disabled={placing}>
@@ -486,11 +653,19 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
         closeOnDragDown={true}
         closeOnPressMask={true}
         customStyles={{
-          wrapper: { backgroundColor: 'rgba(0,0,0,0.4)' },
-          draggableIcon: { backgroundColor: '#bbb' },
-          container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, minHeight: 220, alignItems:'center',textAlign:'center',justifyContent:'center' },
+          wrapper: { backgroundColor: "rgba(0,0,0,0.4)" },
+          draggableIcon: { backgroundColor: "#bbb" },
+          container: {
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+            minHeight: 220,
+            alignItems: "center",
+            textAlign: "center",
+            justifyContent: "center",
+          },
         }}
-        height={fertilizerState === 'driver' ? 340 : 260}
+        height={fertilizerState === "driver" ? 340 : 260}
       >
         <ScrollView
     showsVerticalScrollIndicator={true}
@@ -502,37 +677,110 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
       <Text style={[styles.reqCardDate, fertilizerState === 'rejected' ? styles.reqCardDateRejected : null]}>Request placed</Text>
             <View style={{ flexDirection: 'row', marginTop: 16 }}>
               <TouchableOpacity
-                style={[styles.sheetBtn, { backgroundColor: '#183d2b', marginRight: 10 }]}
+                style={[
+                  styles.sheetBtn,
+                  { backgroundColor: "#fff", marginTop: 18 },
+                ]}
                 onPress={() => {
-                  requestSheetRef.current.close();
-                  setTimeout(() => {
-                    router.replace('/(role)/(nontabsmanager)/order');
-                  }, 300);
-                }}
-              >
-                <Text style={styles.sheetBtnText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sheetBtn, { backgroundColor: '#590804' }]}
-                onPress={() => {
-                  setFertilizerState('none');
+                  setFertilizerState("driver");
                   requestSheetRef.current.close();
                 }}
               >
-                <Text style={styles.sheetBtnText}>Cancel</Text>
+                <Text style={styles.sheetBtnText1}>
+                  Simulate Driver On The Way
+                </Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[styles.sheetBtn, { backgroundColor: '#fff', marginTop: 18 }]}
-              onPress={() => {
-                setFertilizerState('driver');
-                requestSheetRef.current.close();
-              }}
-            >
-              <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          )}
+
+          {fertilizerState === "driver" && (
+            <View>
+              <Text style={styles.reqCardLabel}>Fertilizer request</Text>
+              <Text style={styles.reqCardDate}>Driver on the way</Text>
+              <Text style={styles.reqCardDate}>
+                Arriving at <Text style={{ fontWeight: "bold" }}>5:45PM</Text>
+              </Text>
+              <View
+                style={{
+                  backgroundColor: "#183d2b",
+                  borderTopLeftRadius: 30,
+                  borderBottomLeftRadius: 30,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 16,
+                  marginVertical: 10,
+                  width: 300,
+                }}
+              >
+                <View
+                  style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 30,
+                    backgroundColor: "#eee",
+                    marginRight: 16,
+                    overflow: "hidden",
+                  }}
+                >
+                  <Image
+                    source={require("../../../assets/images/driver.jpg")}
+                    style={{ width: 60, height: 60, borderRadius: 30 }}
+                  />
+                </View>
+                <View>
+                  <Text
+                    style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}
+                  >
+                    Saman
+                  </Text>
+                  <Text style={{ color: "#fff", fontSize: 14 }}>
+                    is on the way
+                  </Text>
+                  <Text style={{ color: "#fff", fontSize: 13 }}>
+                    Vehicle :{" "}
+                    <Text style={{ fontWeight: "bold" }}>LN 2535</Text>
+                  </Text>
+                  <Text style={{ color: "#fff", fontSize: 13, opacity: 0.8 }}>
+                    Isuzu NKR66E
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.sheetBtn,
+                  {
+                    backgroundColor: "#183d2b",
+                    marginTop: 0,
+                    width: 120,
+                    alignSelf: "center",
+                  },
+                ]}
+                onPress={() => {
+                  /* Simulate phone call */
+                }}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}
+                >
+                  Call
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.sheetBtn,
+                  { backgroundColor: "#fff", marginTop: 18 },
+                ]}
+                onPress={() => {
+                  setFertilizerState("pending");
+                  requestSheetRef.current.close();
+                }}
+              >
+                <Text style={styles.sheetBtnText1}>
+                  Simulate Delivery Pending
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
     {fertilizerState === 'driver' && (
           <View>
@@ -543,11 +791,46 @@ Apply before rain or irrigate lightly after application. Avoid contact with wet 
               <View style={{ width:60, height:60, borderRadius:30, backgroundColor:'#eee', marginRight:16, overflow:'hidden' }}>
                 <Image source={require('../../../assets/images/driver.jpg')} style={{ width: 60, height: 60, borderRadius: 30 }} />
               </View>
-              <View>
-                <Text style={{ color:'#fff', fontSize:18, fontWeight:'700' }}>Saman</Text>
-                <Text style={{ color:'#fff', fontSize:14 }}>is on the way</Text>
-                <Text style={{ color:'#fff', fontSize:13 }}>Vehicle : <Text style={{ fontWeight:'bold' }}>LN 2535</Text></Text>
-                <Text style={{ color:'#fff', fontSize:13, opacity:0.8 }}>Isuzu NKR66E</Text>
+              <View style={{ alignItems: "center", marginTop: 18 }}>
+                <SlideToConfirm
+                  unconfimredTipText="Slide to confirm Delivery"
+                  confirmedTipText="Confirmed"
+                  state={confirming}
+                  onSlideConfirmed={() => {
+                    setConfirming(true);
+                    setTimeout(() => {
+                      setFertilizerState("none");
+                      requestSheetRef.current.close();
+                      setConfirming(false);
+                    }, 1000);
+                  }}
+                  sliderStyle={{
+                    width: 300,
+                    height: 60,
+                    borderRadius: 30,
+                    backgroundColor: confirming ? "#6fcf97" : "#183d2b",
+                    justifyContent: "center",
+                  }}
+                  unconfirmedTipTextStyle={{
+                    color: "#fff",
+                    fontSize: 18,
+                    textAlign: "center",
+                    lineHeight: 60,
+                    width: "100%",
+                    position: "absolute",
+                    left: 0,
+                  }}
+                  confirmedTipTextStyle={{
+                    color: "#fff",
+                    fontSize: 18,
+                    textAlign: "center",
+                    lineHeight: 60,
+                    width: "100%",
+                    position: "absolute",
+                    left: 0,
+                  }}
+                  thumbStyle={{ backgroundColor: "#fff", marginLeft: 10 }}
+                />
               </View>
             </View>
             <TouchableOpacity style={[styles.sheetBtn, { backgroundColor:'#183d2b', marginTop:0, width:120, alignSelf:'center' }]} onPress={() => { /* Simulate phone call */ }}>
