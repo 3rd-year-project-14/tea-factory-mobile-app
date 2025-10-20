@@ -21,6 +21,7 @@ import {
   createTeaSupplyRequest,
   updateTeaSupplyRequestBagCount,
   deleteTeaSupplyRequest,
+  getDashboardSummary,
 } from "../../../services/supplierService";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
@@ -39,6 +40,13 @@ export default function SupplierHome({ navigation }) {
   const [isLoadingToday, setIsLoadingToday] = useState(true);
 
   const [simPage, setSimPage] = useState(1);
+
+  const [dashboardSummary, setDashboardSummary] = useState({
+    totalNetWeight: 0,
+    averageTeaRate: 0,
+    approvedCashAdvancePayments: 0,
+    approvedLoanPayments: 0,
+  });
 
   const loadUserName = React.useCallback(async () => {
     try {
@@ -119,10 +127,39 @@ export default function SupplierHome({ navigation }) {
     setIsLoadingToday(false);
   }, []);
 
+  const fetchDashboardSummary = React.useCallback(async () => {
+    try {
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        try {
+          const supplierData = JSON.parse(supplierDataStr);
+          if (Array.isArray(supplierData) && supplierData.length > 0) {
+            supplierId = supplierData[0].supplierId;
+          } else if (supplierData && supplierData.supplierId) {
+            supplierId = supplierData.supplierId;
+          }
+        } catch (_error) {
+          supplierId = null;
+        }
+      }
+      if (!supplierId) return;
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1-based
+      const year = now.getFullYear();
+      const response = await getDashboardSummary(supplierId, month, year);
+      const data = response.data;
+      setDashboardSummary(data);
+    } catch (error) {
+      console.error("Error fetching dashboard summary:", error);
+    }
+  }, []);
+
   const refreshData = React.useCallback(async () => {
     await loadUserName();
     await fetchSupplierRequests();
-  }, [loadUserName, fetchSupplierRequests]);
+    await fetchDashboardSummary();
+  }, [loadUserName, fetchSupplierRequests, fetchDashboardSummary]);
 
   const { refreshing, onRefresh } = usePullToRefresh(refreshData);
 
@@ -130,7 +167,8 @@ export default function SupplierHome({ navigation }) {
   useEffect(() => {
     loadUserName();
     fetchSupplierRequests();
-  }, [loadUserName, fetchSupplierRequests]);
+    fetchDashboardSummary();
+  }, [loadUserName, fetchSupplierRequests, fetchDashboardSummary]);
 
   // Open the modal for entering supply
   const openSupplyModal = () => {
@@ -163,8 +201,6 @@ export default function SupplierHome({ navigation }) {
     setIsEditing(true);
     sheetRef.current.open();
   };
-
-  // ...existing code...
 
   // When confirming supply
   const handleConfirm = async () => {
@@ -299,21 +335,25 @@ export default function SupplierHome({ navigation }) {
               style={[styles.sheetBtn, { backgroundColor: "#590804" }]}
               onPress={handleCancel}
             >
-              <Text style={styles.sheetBtnText}>Cancel</Text>
+              <Text style={styles.sheetBtnText}>Delete</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.sheetBtn,
-              { backgroundColor: "#fff", marginTop: 18 },
-            ]}
-            onPress={() => {
-              setSupplyState("driver");
-              sheetRef.current.close();
-            }}
-          >
-            <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
-          </TouchableOpacity>
+          {new Date().getHours() >= 16 && (
+            <TouchableOpacity
+              style={[
+                styles.sheetBtn,
+                { backgroundColor: "#fff", marginTop: 18 },
+              ]}
+              onPress={() => {
+                setSupplyState("driver");
+                sheetRef.current.close();
+              }}
+            >
+              <Text style={styles.sheetBtnText1}>
+                Simulate Driver On The Way
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -610,13 +650,25 @@ export default function SupplierHome({ navigation }) {
         </View>
 
         {/* Collect your Cash Card */}
-        <View style={styles.cashCard}>
-          <View>
-            <Text style={styles.cashCardLabel}>Collect your Cash</Text>
-            <Text style={styles.cashCardDate}>Date : 25/06/25</Text>
+        {dashboardSummary.approvedCashAdvancePayments +
+          dashboardSummary.approvedLoanPayments >
+          0 && (
+          <View style={styles.cashCard}>
+            <View>
+              <Text style={styles.cashCardLabel}>Collect your Cash</Text>
+              <Text style={styles.cashCardDate}>
+                Date : {new Date().toLocaleDateString("en-GB")}
+              </Text>
+            </View>
+            <Text style={styles.cashCardValue}>
+              Rs{" "}
+              {(
+                dashboardSummary.approvedCashAdvancePayments +
+                dashboardSummary.approvedLoanPayments
+              ).toFixed(2)}
+            </Text>
           </View>
-          <Text style={styles.cashCardValue}>Rs 50,000.00</Text>
-        </View>
+        )}
 
         {/* This month's Supply Card */}
         <TouchableOpacity
@@ -627,18 +679,27 @@ export default function SupplierHome({ navigation }) {
           }}
         >
           <Text style={styles.supplyCardLabel}>This month’s Supply</Text>
-          <Text style={styles.supplyCardDate}>As at : 25/06/25</Text>
+          <Text style={styles.supplyCardDate}>
+            As at : {new Date().toLocaleDateString("en-GB")}
+          </Text>
           <Text style={styles.supplyCardValue}>
-            1000.5 <Text style={styles.supplyCardUnit}>kg</Text>
+            {dashboardSummary.totalNetWeight.toFixed(1)}{" "}
+            <Text style={styles.supplyCardUnit}>kg</Text>
           </Text>
         </TouchableOpacity>
 
         {/* Wallet Card */}
         <TouchableOpacity onPress={() => router.push("/wallet")}>
           <View style={styles.supplyCard}>
-            <Text style={styles.supplyCardLabel}>Wallet</Text>
+            <Text style={styles.supplyCardLabel}>Estimated Wallet</Text>
             <Text style={styles.walletCardValue}>
-              Rs <Text style={styles.walletCardValueNum}>50,000.00</Text>
+              Rs{" "}
+              <Text style={styles.walletCardValueNum}>
+                {(
+                  dashboardSummary.totalNetWeight *
+                  dashboardSummary.averageTeaRate
+                ).toFixed(2)}
+              </Text>
             </Text>
           </View>
         </TouchableOpacity>
@@ -1075,42 +1136,47 @@ const styles = StyleSheet.create({
   },
 
   // Modal styles
-  sheetContent: { flex: 1, alignItems: "center" },
+  sheetContent: { flex: 1, alignItems: "center", justifyContent: "center" },
   sheetTitle: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: "700",
     color: "#183d2b",
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  sheetSubtitle: { fontSize: 15, color: "#666", marginBottom: 18 },
   sheetInput: {
-    width: "90%",
-    backgroundColor: "#D5E6E3",
-    borderRadius: 30,
-    paddingHorizontal: 40,
-    paddingVertical: 10,
+    height: 54,
+    width: "100%",
+    maxWidth: 300,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingHorizontal: 16,
     fontSize: 18,
-    color: "#222",
-    marginBottom: 18,
-    marginTop: 18,
-    textAlign: "center",
-    fontWeight: "600",
-  },
-  sheetBtn: {
-    minWidth: 120,
-    borderRadius: 18,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 8,
-  },
-
-  sheetBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  sheetBtnText1: { color: "#000", fontSize: 17, fontWeight: "700" },
-  supplyCount: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#183d2b",
     marginTop: 12,
   },
-  supplyUnit: { fontSize: 18, color: "#888", fontWeight: "400" },
+  supplyUnit: {
+    fontSize: 16,
+    color: "#888",
+    fontWeight: "400",
+  },
+  sheetBtn: {
+    height: 54,
+    width: "100%",
+    maxWidth: 300,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+  },
+  sheetBtnText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sheetBtnText1: {
+    color: "#183d2b",
+    fontSize: 18,
+    fontWeight: "700",
+  },
 });

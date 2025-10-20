@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PieChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
 import { usePullToRefresh } from "../../../../hooks/usePullToRefresh";
@@ -56,13 +57,30 @@ export default function IncomeScreen() {
   const [dailyData, setDailyData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     setLoading(true);
     const actualMonth = (currentMonthIndex + selectedMonth) % 12;
     try {
+      const supplierDataStr = await AsyncStorage.getItem("supplierData");
+      let supplierId = null;
+      if (supplierDataStr) {
+        const supplierData = JSON.parse(supplierDataStr);
+        if (Array.isArray(supplierData) && supplierData.length > 0) {
+          supplierId = supplierData[0].supplierId;
+        } else if (supplierData && supplierData.supplierId) {
+          supplierId = supplierData.supplierId;
+        }
+      }
+
+      if (!supplierId) {
+        console.error("Supplier ID not found");
+        setLoading(false);
+        return;
+      }
+
       const [summaryResponse, dailyResponse] = await Promise.all([
-        getWeightsSummary(15, actualMonth, selectedYear),
-        getDailySummary(15, actualMonth, selectedYear),
+        getWeightsSummary(supplierId, actualMonth, selectedYear),
+        getDailySummary(supplierId, actualMonth, selectedYear),
       ]);
       setSummaryData(summaryResponse.data);
       setDailyData(dailyResponse.data);
@@ -71,7 +89,7 @@ export default function IncomeScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     refreshData();

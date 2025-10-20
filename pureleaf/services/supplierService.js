@@ -39,6 +39,25 @@ export const requestAdvance = (
 export const getAdvanceRequests = (supplierId) =>
   apiClient.get(`/api/advances/supplier/${supplierId}`);
 
+// Edit an advance request
+export const editAdvanceRequest = (
+  advanceId,
+  supplierId,
+  requestedAmount,
+  purpose,
+  paymentMethod
+) =>
+  apiClient.put(`/api/advances/${advanceId}`, {
+    supplierId: Number(supplierId),
+    requestedAmount: Number(requestedAmount),
+    purpose,
+    paymentMethod,
+  });
+
+// Delete an advance request
+export const deleteAdvanceRequest = (advanceId) =>
+  apiClient.delete(`/api/advances/${advanceId}`);
+
 // Request a loan
 export const requestLoan = (supplierId, amount, months) =>
   apiClient.post("/api/loan-requests", {
@@ -47,8 +66,25 @@ export const requestLoan = (supplierId, amount, months) =>
     months: Number(months),
   });
 
-// Get all loan requests (backend returns list)
-export const getLoanRequests = () => apiClient.get("/api/loan-requests");
+// Get loan requests for a supplier
+export const getLoanRequestsBySupplier = (supplierId) =>
+  apiClient.get(`/api/loan-requests/supplier/${supplierId}`);
+
+// Edit a loan request
+export const editLoanRequest = (loanId, supplierId, amount, months) =>
+  apiClient.put(`/api/loan-requests/${loanId}`, {
+    supplierId: Number(supplierId),
+    amount: Number(amount),
+    months: Number(months),
+  });
+
+// Delete a loan request
+export const deleteLoanRequest = (loanId) =>
+  apiClient.delete(`/api/loan-requests/${loanId}`);
+
+// Get loans for a supplier
+export const getLoansBySupplier = (supplierId) =>
+  apiClient.get(`/api/loans/supplier/${supplierId}`);
 
 // Get weights summary for supplier
 export const getWeightsSummary = (supplierId, month, year) =>
@@ -60,4 +96,28 @@ export const getWeightsSummary = (supplierId, month, year) =>
 export const getDailySummary = (supplierId, month, year) =>
   apiClient.get(
     `/api/factory-dashboard/supplier/${supplierId}/daily-summary?month=${month + 1}&year=${year}`
+  );
+
+// Create supplier fertilizer request
+export const createSupplierFertilizerRequest = (
+  supplierId,
+  requestDate,
+  items
+) =>
+  apiClient.post("/api/supplier-fertilizer-requests", {
+    supplierId,
+    requestDate,
+    items,
+  });
+
+// Get payment history for a supplier
+export const getPaymentHistory = (supplierId, month, year) =>
+  apiClient.get(
+    `/api/supplier/payments/history?supplierId=${supplierId}&month=${month}&year=${year}`
+  );
+
+// Get dashboard summary for supplier
+export const getDashboardSummary = (supplierId, month, year) =>
+  apiClient.get(
+    `/api/supplier/payments/dashboard-summary?supplierId=${supplierId}&month=${month}&year=${year}`
   );
