@@ -299,21 +299,25 @@ export default function SupplierHome({ navigation }) {
               style={[styles.sheetBtn, { backgroundColor: "#590804" }]}
               onPress={handleCancel}
             >
-              <Text style={styles.sheetBtnText}>Cancel</Text>
+              <Text style={styles.sheetBtnText}>Delete</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.sheetBtn,
-              { backgroundColor: "#fff", marginTop: 18 },
-            ]}
-            onPress={() => {
-              setSupplyState("driver");
-              sheetRef.current.close();
-            }}
-          >
-            <Text style={styles.sheetBtnText1}>Simulate Driver On The Way</Text>
-          </TouchableOpacity>
+          {new Date().getHours() >= 16 && (
+            <TouchableOpacity
+              style={[
+                styles.sheetBtn,
+                { backgroundColor: "#fff", marginTop: 18 },
+              ]}
+              onPress={() => {
+                setSupplyState("driver");
+                sheetRef.current.close();
+              }}
+            >
+              <Text style={styles.sheetBtnText1}>
+                Simulate Driver On The Way
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }

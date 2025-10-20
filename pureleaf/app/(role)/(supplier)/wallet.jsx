@@ -23,8 +23,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   requestAdvance,
   getAdvanceRequests,
+  editAdvanceRequest,
+  deleteAdvanceRequest,
   requestLoan,
-  getLoanRequests,
+  getLoanRequestsBySupplier,
+  getLoansBySupplier,
+  editLoanRequest,
+  deleteLoanRequest,
 } from "../../../services/supplierService";
 import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
 
@@ -68,8 +73,9 @@ export default function WalletPage() {
   const [advanceType, setAdvanceType] = useState("");
   const [advancePurpose, setAdvancePurpose] = useState("");
   const [advanceError, setAdvanceError] = useState("");
-  const [advanceCards, setAdvanceCards] = useState([]);
   const [existingAdvances, setExistingAdvances] = useState([]);
+  const [existingLoans, setExistingLoans] = useState([]);
+  const [approvedLoans, setApprovedLoans] = useState([]);
   const [advanceLoading, setAdvanceLoading] = useState(false);
 
   const [showHistory, setShowHistory] = useState(false);
@@ -84,10 +90,32 @@ export default function WalletPage() {
   const [showRequestLoanModal, setShowRequestLoanModal] = useState(false);
   const [loanAmount, setLoanAmount] = useState("");
   const [loanDuration, setLoanDuration] = useState("3 Month");
-  const [loanPaymentType, setLoanPaymentType] = useState("Cheque");
   const [loanRequestLoading, setLoanRequestLoading] = useState(false);
   const [loanRequested, setLoanRequested] = useState(false);
   const [loanData, setLoanData] = useState(null);
+  // Edit loan modal state
+  const [showEditLoanModal, setShowEditLoanModal] = useState(false);
+  const [editLoanAmount, setEditLoanAmount] = useState("");
+  const [editLoanDuration, setEditLoanDuration] = useState("3 Month");
+  const [selectedLoanForEdit, setSelectedLoanForEdit] = useState(null);
+  const [editLoanLoading, setEditLoanLoading] = useState(false);
+  // Delete loan confirmation state
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [selectedLoanForDelete, setSelectedLoanForDelete] = useState(null);
+  const [deleteLoanLoading, setDeleteLoanLoading] = useState(false);
+  // Edit advance modal state
+  const [showEditAdvanceModal, setShowEditAdvanceModal] = useState(false);
+  const [editAdvanceAmount, setEditAdvanceAmount] = useState("");
+  const [editAdvanceType, setEditAdvanceType] = useState("");
+  const [editAdvancePurpose, setEditAdvancePurpose] = useState("");
+  const [selectedAdvanceForEdit, setSelectedAdvanceForEdit] = useState(null);
+  const [editAdvanceLoading, setEditAdvanceLoading] = useState(false);
+  // Delete advance confirmation state
+  const [showDeleteAdvanceConfirmation, setShowDeleteAdvanceConfirmation] =
+    useState(false);
+  const [selectedAdvanceForDelete, setSelectedAdvanceForDelete] =
+    useState(null);
+  const [deleteAdvanceLoading, setDeleteAdvanceLoading] = useState(false);
 
   const refreshData = useCallback(async () => {
     try {
@@ -101,13 +129,27 @@ export default function WalletPage() {
           supplierId = supplierData.supplierId;
         }
       }
+      console.log("Retrieved supplierId:", supplierId);
       if (supplierId) {
-        const response = await getAdvanceRequests(supplierId);
-        console.log("Advance requests response:", response.data); // Debug log
-        setExistingAdvances(response.data);
+        console.log("Making API calls for supplierId:", supplierId);
+        const [advanceResponse, loanRequestResponse, loanResponse] =
+          await Promise.all([
+            getAdvanceRequests(supplierId),
+            getLoanRequestsBySupplier(supplierId),
+            getLoansBySupplier(supplierId),
+          ]);
+        console.log("Advance requests response:", advanceResponse.data);
+        console.log("Loan requests response:", loanRequestResponse.data);
+        console.log("Loans response:", loanResponse.data);
+        setExistingAdvances(advanceResponse.data);
+        setExistingLoans(loanRequestResponse.data);
+        setApprovedLoans(loanResponse.data);
+      } else {
+        console.log("No supplierId found, skipping API calls");
       }
-    } catch (_error) {
-      // Silently fail for existing advances
+    } catch (error) {
+      console.error("Error in refreshData:", error);
+      console.error("Error details:", error?.response?.data || error.message);
     }
   }, []);
 
@@ -132,12 +174,21 @@ export default function WalletPage() {
       });
   }, [searchTerm]);
 
+  // Determine which loan to display: approved loan if exists, else requested loan
+  const displayLoan = useMemo(() => {
+    if (approvedLoans.length > 0) {
+      // Show the first approved loan
+      return approvedLoans[0];
+    }
+    return loanData;
+  }, [approvedLoans, loanData]);
+
   const money = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2 });
 
-  // Fetch existing advances when screen comes into focus
+  // Fetch existing advances, loan requests, and loans when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      const fetchExistingAdvances = async () => {
+      const fetchExistingRequests = async () => {
         try {
           const supplierDataStr = await AsyncStorage.getItem("supplierData");
           let supplierId = null;
@@ -149,16 +200,47 @@ export default function WalletPage() {
               supplierId = supplierData.supplierId;
             }
           }
+          console.log("Focus effect - Retrieved supplierId:", supplierId);
           if (supplierId) {
-            const response = await getAdvanceRequests(supplierId);
-            console.log("Advance requests response:", response.data); // Debug log
-            setExistingAdvances(response.data);
+            console.log(
+              "Focus effect - Making API calls for supplierId:",
+              supplierId
+            );
+            const [advanceResponse, loanRequestResponse, loanResponse] =
+              await Promise.all([
+                getAdvanceRequests(supplierId),
+                getLoanRequestsBySupplier(supplierId),
+                getLoansBySupplier(supplierId),
+              ]);
+            console.log(
+              "Focus effect - Advance requests response:",
+              advanceResponse.data
+            );
+            console.log(
+              "Focus effect - Loan requests response:",
+              loanRequestResponse.data
+            );
+            console.log("Focus effect - Loans response:", loanResponse.data);
+            setExistingAdvances(advanceResponse.data);
+            setExistingLoans(loanRequestResponse.data);
+            setApprovedLoans(loanResponse.data);
+          } else {
+            console.log(
+              "Focus effect - No supplierId found, skipping API calls"
+            );
           }
-        } catch (_error) {
-          // Silently fail for existing advances
+        } catch (error) {
+          console.error(
+            "Focus effect - Error fetching existing requests:",
+            error
+          );
+          console.error(
+            "Focus effect - Error details:",
+            error?.response?.data || error.message
+          );
         }
       };
-      fetchExistingAdvances();
+      fetchExistingRequests();
     }, [])
   );
 
@@ -190,9 +272,14 @@ export default function WalletPage() {
             </TouchableOpacity>
             <View style={styles.walletBtnRow}>
               <TouchableOpacity
-                style={[styles.walletBtn, loanRequested && { backgroundColor: '#999' }]}
+                style={[
+                  styles.walletBtn,
+                  (loanRequested || existingLoans.length > 0) && {
+                    backgroundColor: "#999",
+                  },
+                ]}
                 onPress={() => setShowRequestLoanModal(true)}
-                disabled={loanRequested}
+                disabled={loanRequested || existingLoans.length > 0}
               >
                 <Text style={styles.walletBtnText}>Request{"\n"}Loan</Text>
               </TouchableOpacity>
@@ -206,49 +293,139 @@ export default function WalletPage() {
           </View>
 
           {/* === Requested Advance Cards === */}
-          {[...existingAdvances, ...advanceCards].map((item, index) => (
-            <View key={index} style={styles.collectCard}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  width: "100%",
-                }}
-              >
-                <Text style={styles.collectTitle}>Advance Request</Text>
-                <Text style={styles.collectAmount}>
-                  Rs{" "}
-                  {Number(item.requestedAmount || item.amount).toLocaleString()}
-                </Text>
-              </View>
-              <Text style={styles.collectDate}>
-                Payment Method : {item.paymentMethod || item.type}
-              </Text>
-              <Text style={styles.collectDate}>Status : {item.status}</Text>
-              {(item.createdAt ||
-                item.requestedDate ||
-                item.requested_date ||
-                item.date) && (
+          {existingAdvances.length > 0 &&
+            existingAdvances.map((item, index) => (
+              <View key={index} style={styles.collectCard}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    width: "100%",
+                  }}
+                >
+                  <Text style={styles.collectTitle}>Advance Request</Text>
+                  <Text style={styles.collectAmount}>
+                    Rs{" "}
+                    {Number(
+                      item.requestedAmount || item.amount
+                    ).toLocaleString()}
+                  </Text>
+                </View>
                 <Text style={styles.collectDate}>
-                  Date :{" "}
-                  {new Date(
-                    item.createdAt ||
-                      item.requestedDate ||
-                      item.requested_date ||
-                      item.date
-                  ).toLocaleDateString("en-GB")}
+                  Payment Method : {item.paymentMethod || item.type}
                 </Text>
-              )}
-              {item.purpose && (
-                <Text style={styles.collectDate}>Purpose : {item.purpose}</Text>
-              )}
-              {item.status === "REJECTED" && item.rejectionReason && (
-                <Text style={[styles.collectDate, { color: "#B3292A" }]}>
-                  Rejection Reason : {item.rejectionReason}
-                </Text>
-              )}
-            </View>
-          ))}
+                <Text style={styles.collectDate}>Status : {item.status}</Text>
+                {(item.createdAt ||
+                  item.requestedDate ||
+                  item.requested_date ||
+                  item.date) && (
+                  <Text style={styles.collectDate}>
+                    Date :{" "}
+                    {new Date(
+                      item.createdAt ||
+                        item.requestedDate ||
+                        item.requested_date ||
+                        item.date
+                    ).toLocaleDateString("en-GB")}
+                  </Text>
+                )}
+                {item.purpose && (
+                  <Text style={styles.collectDate}>
+                    Purpose : {item.purpose}
+                  </Text>
+                )}
+                {item.status === "REJECTED" && item.rejectionReason && (
+                  <Text style={[styles.collectDate, { color: "#B3292A" }]}>
+                    Rejection Reason : {item.rejectionReason}
+                  </Text>
+                )}
+                {item.status === "REQUESTED" && (
+                  <View style={styles.loanActionButtons}>
+                    <TouchableOpacity
+                      style={[styles.loanActionBtn, styles.editBtn]}
+                      onPress={() => {
+                        setSelectedAdvanceForEdit(item);
+                        setEditAdvanceAmount(
+                          item.requestedAmount?.toString() ||
+                            item.amount?.toString() ||
+                            ""
+                        );
+                        setEditAdvanceType(
+                          item.paymentMethod === "CASH" ? "Cash" : "Bank"
+                        );
+                        setEditAdvancePurpose(item.purpose || "");
+                        setShowEditAdvanceModal(true);
+                      }}
+                    >
+                      <Ionicons name="pencil" size={16} color="#fff" />
+                      <Text style={styles.loanActionBtnText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.loanActionBtn, styles.deleteBtn]}
+                      onPress={() => {
+                        setSelectedAdvanceForDelete(item);
+                        setShowDeleteAdvanceConfirmation(true);
+                      }}
+                    >
+                      <Ionicons name="trash" size={16} color="#fff" />
+                      <Text style={styles.loanActionBtnText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+
+          {/* === Requested Loan Cards === */}
+          {existingLoans.length > 0 &&
+            existingLoans.map((item, index) => (
+              <View key={index} style={styles.collectCard}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    width: "100%",
+                  }}
+                >
+                  <Text style={styles.collectTitle}>Loan Request</Text>
+                  <Text style={styles.collectAmount}>
+                    Rs {Number(item.amount).toLocaleString()}
+                  </Text>
+                </View>
+                <Text style={styles.collectDate}>Months : {item.months}</Text>
+                <Text style={styles.collectDate}>Status : {item.status}</Text>
+                {item.date && (
+                  <Text style={styles.collectDate}>
+                    Date : {new Date(item.date).toLocaleDateString("en-GB")}
+                  </Text>
+                )}
+                {item.status === "PENDING" && (
+                  <View style={styles.loanActionButtons}>
+                    <TouchableOpacity
+                      style={[styles.loanActionBtn, styles.editBtn]}
+                      onPress={() => {
+                        setSelectedLoanForEdit(item);
+                        setEditLoanAmount(item.amount.toString());
+                        setEditLoanDuration(`${item.months} Month`);
+                        setShowEditLoanModal(true);
+                      }}
+                    >
+                      <Ionicons name="pencil" size={16} color="#fff" />
+                      <Text style={styles.loanActionBtnText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.loanActionBtn, styles.deleteBtn]}
+                      onPress={() => {
+                        setSelectedLoanForDelete(item);
+                        setShowDeleteConfirmation(true);
+                      }}
+                    >
+                      <Ionicons name="trash" size={16} color="#fff" />
+                      <Text style={styles.loanActionBtnText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
 
           {/* === Request Advance Modal === */}
           <Modal
@@ -372,8 +549,39 @@ export default function WalletPage() {
                             paymentMethod,
                             advancePurpose || null
                           );
-                          const data = response.data;
-                          setAdvanceCards((prev) => [...prev, data]);
+                          const created = response.data;
+                          // Add the new advance to existing advances for immediate display
+                          setExistingAdvances((prev) => [
+                            ...prev,
+                            {
+                              reqId:
+                                created.reqId ||
+                                created.id ||
+                                created.requestId,
+                              supplierId:
+                                created.supplierId ||
+                                (created.supplier &&
+                                  created.supplier.supplierId),
+                              requestedAmount:
+                                created.requestedAmount || created.amount,
+                              paymentMethod:
+                                created.paymentMethod || created.type,
+                              purpose: created.purpose,
+                              status: created.status || "REQUESTED",
+                              createdAt:
+                                created.createdAt ||
+                                created.requestedDate ||
+                                created.date,
+                              requestedDate:
+                                created.requestedDate ||
+                                created.createdAt ||
+                                created.date,
+                              date:
+                                created.date ||
+                                created.createdAt ||
+                                created.requestedDate,
+                            },
+                          ]);
                           // clear form
                           setAdvanceAmount("");
                           setAdvanceType("");
@@ -406,7 +614,9 @@ export default function WalletPage() {
             animationType="fade"
             onRequestClose={() => setShowRequestLoanModal(false)}
           >
-            <TouchableWithoutFeedback onPress={() => setShowRequestLoanModal(false)}>
+            <TouchableWithoutFeedback
+              onPress={() => setShowRequestLoanModal(false)}
+            >
               <View style={styles.loanModalBackdrop}>
                 <TouchableWithoutFeedback>
                   <View style={styles.advancePopup}>
@@ -420,7 +630,9 @@ export default function WalletPage() {
                       placeholderTextColor="#999"
                       maxLength={12}
                       value={loanAmount}
-                      onChangeText={(v) => { if (/^\d*$/.test(v)) setLoanAmount(v); }}
+                      onChangeText={(v) => {
+                        if (/^\d*$/.test(v)) setLoanAmount(v);
+                      }}
                     />
 
                     <Text style={styles.advanceLabel}>Duration *</Text>
@@ -431,32 +643,19 @@ export default function WalletPage() {
                           onPress={() => setLoanDuration(d)}
                           style={[
                             styles.advanceDropdownItem,
-                            loanDuration === d && styles.advanceDropdownItemSelected,
+                            loanDuration === d &&
+                              styles.advanceDropdownItemSelected,
                           ]}
                         >
-                          <Text style={[
-                            styles.advanceDropdownText,
-                            loanDuration === d && styles.advanceDropdownTextSelected,
-                          ]}>{d}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    <Text style={styles.advanceLabel}>Payment Type *</Text>
-                    <View style={styles.advanceDropdown}>
-                      {["Cheque", "Cash", "Bank"].map((t) => (
-                        <TouchableOpacity
-                          key={t}
-                          onPress={() => setLoanPaymentType(t)}
-                          style={[
-                            styles.advanceDropdownItem,
-                            loanPaymentType === t && styles.advanceDropdownItemSelected,
-                          ]}
-                        >
-                          <Text style={[
-                            styles.advanceDropdownText,
-                            loanPaymentType === t && styles.advanceDropdownTextSelected,
-                          ]}>{t}</Text>
+                          <Text
+                            style={[
+                              styles.advanceDropdownText,
+                              loanDuration === d &&
+                                styles.advanceDropdownTextSelected,
+                            ]}
+                          >
+                            {d}
+                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -464,24 +663,35 @@ export default function WalletPage() {
                     <TouchableOpacity
                       style={[
                         styles.advanceRequestBtn,
-                        (!(loanAmount && loanDuration && loanPaymentType) || loanRequestLoading) && { backgroundColor: '#ccc' },
+                        (!(loanAmount && loanDuration) ||
+                          loanRequestLoading) && { backgroundColor: "#ccc" },
                       ]}
-                      disabled={!(loanAmount && loanDuration && loanPaymentType) || loanRequestLoading}
+                      disabled={
+                        !(loanAmount && loanDuration) || loanRequestLoading
+                      }
                       onPress={async () => {
-                        if (!loanAmount || !loanDuration || !loanPaymentType) return;
+                        if (!loanAmount || !loanDuration) return;
                         setLoanRequestLoading(true);
                         try {
                           // determine months from duration string like "3 Month"
-                          const months = Number(loanDuration.split(" ")[0]) || 3;
+                          const months =
+                            Number(loanDuration.split(" ")[0]) || 3;
 
                           // get supplierId from AsyncStorage
-                          const supplierDataStr = await AsyncStorage.getItem("supplierData");
+                          const supplierDataStr =
+                            await AsyncStorage.getItem("supplierData");
                           let supplierId = null;
                           if (supplierDataStr) {
                             const supplierData = JSON.parse(supplierDataStr);
-                            if (Array.isArray(supplierData) && supplierData.length > 0) {
+                            if (
+                              Array.isArray(supplierData) &&
+                              supplierData.length > 0
+                            ) {
                               supplierId = supplierData[0].supplierId;
-                            } else if (supplierData && supplierData.supplierId) {
+                            } else if (
+                              supplierData &&
+                              supplierData.supplierId
+                            ) {
                               supplierId = supplierData.supplierId;
                             }
                           }
@@ -490,29 +700,461 @@ export default function WalletPage() {
                             return;
                           }
 
-                          const response = await requestLoan(supplierId, loanAmount, months);
+                          const response = await requestLoan(
+                            supplierId,
+                            loanAmount,
+                            months
+                          );
                           const created = response.data;
                           // map backend response into our UI state
                           setLoanData({
-                            reqId: created.reqId || created.id || created.requestId,
-                            supplierId: created.supplierId || (created.supplier && created.supplier.supplierId),
+                            reqId:
+                              created.reqId || created.id || created.requestId,
+                            supplierId:
+                              created.supplierId ||
+                              (created.supplier && created.supplier.supplierId),
                             amount: created.amount || created.requestedAmount,
                             months: created.months || months,
-                            date: created.date || created.createdAt || created.requestedDate,
+                            date:
+                              created.date ||
+                              created.createdAt ||
+                              created.requestedDate,
                             status: created.status || "PENDING",
-                            paymentType: loanPaymentType,
                           });
                           setLoanRequested(true);
                           setShowRequestLoanModal(false);
                         } catch (err) {
-                          console.log("Loan request error", err?.response?.data || err.message || err);
+                          console.log(
+                            "Loan request error",
+                            err?.response?.data || err.message || err
+                          );
                         } finally {
                           setLoanRequestLoading(false);
                         }
                       }}
                     >
-                      <Text style={styles.advanceRequestBtnText}>{loanRequestLoading ? 'Requesting...' : 'Request Loan'}</Text>
+                      <Text style={styles.advanceRequestBtnText}>
+                        {loanRequestLoading ? "Requesting..." : "Request Loan"}
+                      </Text>
                     </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
+          {/* === EDIT LOAN MODAL === */}
+          <Modal
+            visible={showEditLoanModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowEditLoanModal(false)}
+          >
+            <TouchableWithoutFeedback
+              onPress={() => setShowEditLoanModal(false)}
+            >
+              <View style={styles.loanModalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.advancePopup}>
+                    <Text style={styles.loanPopupTitle}>Edit Loan Request</Text>
+
+                    <Text style={styles.advanceLabel}>Amount *</Text>
+                    <TextInput
+                      style={styles.advanceInput}
+                      keyboardType="numeric"
+                      placeholder="Enter amount"
+                      placeholderTextColor="#999"
+                      maxLength={12}
+                      value={editLoanAmount}
+                      onChangeText={(v) => {
+                        if (/^\d*$/.test(v)) setEditLoanAmount(v);
+                      }}
+                    />
+
+                    <Text style={styles.advanceLabel}>Duration *</Text>
+                    <View style={styles.advanceDropdown}>
+                      {["3 Month", "6 Month", "12 Month"].map((d) => (
+                        <TouchableOpacity
+                          key={d}
+                          onPress={() => setEditLoanDuration(d)}
+                          style={[
+                            styles.advanceDropdownItem,
+                            editLoanDuration === d &&
+                              styles.advanceDropdownItemSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.advanceDropdownText,
+                              editLoanDuration === d &&
+                                styles.advanceDropdownTextSelected,
+                            ]}
+                          >
+                            {d}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.advanceRequestBtn,
+                        (!(editLoanAmount && editLoanDuration) ||
+                          editLoanLoading) && { backgroundColor: "#ccc" },
+                      ]}
+                      disabled={
+                        !(editLoanAmount && editLoanDuration) || editLoanLoading
+                      }
+                      onPress={async () => {
+                        if (
+                          !editLoanAmount ||
+                          !editLoanDuration ||
+                          !selectedLoanForEdit
+                        )
+                          return;
+                        setEditLoanLoading(true);
+                        try {
+                          const months =
+                            Number(editLoanDuration.split(" ")[0]) || 3;
+
+                          const supplierDataStr =
+                            await AsyncStorage.getItem("supplierData");
+                          let supplierId = null;
+                          if (supplierDataStr) {
+                            const supplierData = JSON.parse(supplierDataStr);
+                            if (
+                              Array.isArray(supplierData) &&
+                              supplierData.length > 0
+                            ) {
+                              supplierId = supplierData[0].supplierId;
+                            } else if (
+                              supplierData &&
+                              supplierData.supplierId
+                            ) {
+                              supplierId = supplierData.supplierId;
+                            }
+                          }
+
+                          if (!supplierId) {
+                            setEditLoanLoading(false);
+                            return;
+                          }
+
+                          await editLoanRequest(
+                            selectedLoanForEdit.reqId || selectedLoanForEdit.id,
+                            supplierId,
+                            editLoanAmount,
+                            months
+                          );
+
+                          // Refresh data
+                          refreshData();
+                          setShowEditLoanModal(false);
+                          setSelectedLoanForEdit(null);
+                          setEditLoanAmount("");
+                          setEditLoanDuration("3 Month");
+                        } catch (err) {
+                          console.log(
+                            "Edit loan error",
+                            err?.response?.data || err.message || err
+                          );
+                        } finally {
+                          setEditLoanLoading(false);
+                        }
+                      }}
+                    >
+                      <Text style={styles.advanceRequestBtnText}>
+                        {editLoanLoading ? "Updating..." : "Update Loan"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
+          {/* === EDIT ADVANCE MODAL === */}
+          <Modal
+            visible={showEditAdvanceModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowEditAdvanceModal(false)}
+          >
+            <TouchableWithoutFeedback
+              onPress={() => setShowEditAdvanceModal(false)}
+            >
+              <View style={styles.loanModalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.advancePopup}>
+                    <Text style={styles.loanPopupTitle}>
+                      Edit Advance Request
+                    </Text>
+
+                    <Text style={styles.advanceLabel}>Amount *</Text>
+                    <TextInput
+                      style={styles.advanceInput}
+                      keyboardType="numeric"
+                      placeholder="Enter amount"
+                      placeholderTextColor="#999"
+                      maxLength={9}
+                      value={editAdvanceAmount}
+                      onChangeText={(value) => {
+                        if (/^\d*$/.test(value)) setEditAdvanceAmount(value);
+                      }}
+                    />
+
+                    <Text style={styles.advanceLabel}>Payment Type *</Text>
+                    <View style={styles.advanceDropdown}>
+                      {["Cash", "Bank"].map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => setEditAdvanceType(type)}
+                          style={[
+                            styles.advanceDropdownItem,
+                            editAdvanceType === type &&
+                              styles.advanceDropdownItemSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.advanceDropdownText,
+                              editAdvanceType === type &&
+                                styles.advanceDropdownTextSelected,
+                            ]}
+                          >
+                            {type}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={styles.advanceLabel}>Purpose (Optional)</Text>
+                    <TextInput
+                      style={styles.advanceInput}
+                      placeholder="Enter purpose"
+                      placeholderTextColor="#999"
+                      value={editAdvancePurpose}
+                      onChangeText={setEditAdvancePurpose}
+                      maxLength={100}
+                    />
+
+                    <TouchableOpacity
+                      style={[
+                        styles.advanceRequestBtn,
+                        (!(editAdvanceAmount && editAdvanceType) ||
+                          editAdvanceLoading) && { backgroundColor: "#ccc" },
+                      ]}
+                      disabled={
+                        !(editAdvanceAmount && editAdvanceType) ||
+                        editAdvanceLoading
+                      }
+                      onPress={async () => {
+                        if (
+                          !editAdvanceAmount ||
+                          !editAdvanceType ||
+                          !selectedAdvanceForEdit
+                        )
+                          return;
+                        setEditAdvanceLoading(true);
+                        try {
+                          const supplierDataStr =
+                            await AsyncStorage.getItem("supplierData");
+                          let supplierId = null;
+                          if (supplierDataStr) {
+                            const supplierData = JSON.parse(supplierDataStr);
+                            if (
+                              Array.isArray(supplierData) &&
+                              supplierData.length > 0
+                            ) {
+                              supplierId = supplierData[0].supplierId;
+                            } else if (
+                              supplierData &&
+                              supplierData.supplierId
+                            ) {
+                              supplierId = supplierData.supplierId;
+                            }
+                          }
+
+                          if (!supplierId) {
+                            setEditAdvanceLoading(false);
+                            return;
+                          }
+
+                          const paymentMethod =
+                            editAdvanceType === "Cash" ? "CASH" : "BANK";
+
+                          await editAdvanceRequest(
+                            selectedAdvanceForEdit.reqId ||
+                              selectedAdvanceForEdit.id,
+                            supplierId,
+                            editAdvanceAmount,
+                            editAdvancePurpose || null,
+                            paymentMethod
+                          );
+
+                          // Refresh data
+                          refreshData();
+                          setShowEditAdvanceModal(false);
+                          setSelectedAdvanceForEdit(null);
+                          setEditAdvanceAmount("");
+                          setEditAdvanceType("");
+                          setEditAdvancePurpose("");
+                        } catch (err) {
+                          console.log(
+                            "Edit advance error",
+                            err?.response?.data || err.message || err
+                          );
+                        } finally {
+                          setEditAdvanceLoading(false);
+                        }
+                      }}
+                    >
+                      <Text style={styles.advanceRequestBtnText}>
+                        {editAdvanceLoading ? "Updating..." : "Update Advance"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
+          {/* === DELETE CONFIRMATION MODAL === */}
+          <Modal
+            visible={showDeleteConfirmation}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowDeleteConfirmation(false)}
+          >
+            <TouchableWithoutFeedback
+              onPress={() => setShowDeleteConfirmation(false)}
+            >
+              <View style={styles.loanModalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.confirmationPopup}>
+                    <Text style={styles.confirmationTitle}>
+                      Delete Loan Request
+                    </Text>
+                    <Text style={styles.confirmationMessage}>
+                      Are you sure you want to delete this loan request? This
+                      action cannot be undone.
+                    </Text>
+                    <View style={styles.confirmationButtons}>
+                      <TouchableOpacity
+                        style={[styles.confirmationBtn, styles.cancelBtn]}
+                        onPress={() => {
+                          setShowDeleteConfirmation(false);
+                          setSelectedLoanForDelete(null);
+                        }}
+                        disabled={deleteLoanLoading}
+                      >
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.confirmationBtn,
+                          styles.deleteConfirmBtn,
+                        ]}
+                        onPress={async () => {
+                          if (!selectedLoanForDelete) return;
+                          setDeleteLoanLoading(true);
+                          try {
+                            await deleteLoanRequest(
+                              selectedLoanForDelete.reqId ||
+                                selectedLoanForDelete.id
+                            );
+
+                            // Refresh data
+                            refreshData();
+                            setShowDeleteConfirmation(false);
+                            setSelectedLoanForDelete(null);
+                          } catch (err) {
+                            console.log(
+                              "Delete loan error",
+                              err?.response?.data || err.message || err
+                            );
+                          } finally {
+                            setDeleteLoanLoading(false);
+                          }
+                        }}
+                        disabled={deleteLoanLoading}
+                      >
+                        <Text style={styles.deleteConfirmBtnText}>
+                          {deleteLoanLoading ? "Deleting..." : "Delete"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
+          {/* === DELETE ADVANCE CONFIRMATION MODAL === */}
+          <Modal
+            visible={showDeleteAdvanceConfirmation}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowDeleteAdvanceConfirmation(false)}
+          >
+            <TouchableWithoutFeedback
+              onPress={() => setShowDeleteAdvanceConfirmation(false)}
+            >
+              <View style={styles.loanModalBackdrop}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.confirmationPopup}>
+                    <Text style={styles.confirmationTitle}>
+                      Delete Advance Request
+                    </Text>
+                    <Text style={styles.confirmationMessage}>
+                      Are you sure you want to delete this advance request? This
+                      action cannot be undone.
+                    </Text>
+                    <View style={styles.confirmationButtons}>
+                      <TouchableOpacity
+                        style={[styles.confirmationBtn, styles.cancelBtn]}
+                        onPress={() => {
+                          setShowDeleteAdvanceConfirmation(false);
+                          setSelectedAdvanceForDelete(null);
+                        }}
+                        disabled={deleteAdvanceLoading}
+                      >
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.confirmationBtn,
+                          styles.deleteConfirmBtn,
+                        ]}
+                        onPress={async () => {
+                          if (!selectedAdvanceForDelete) return;
+                          setDeleteAdvanceLoading(true);
+                          try {
+                            await deleteAdvanceRequest(
+                              selectedAdvanceForDelete.reqId ||
+                                selectedAdvanceForDelete.id
+                            );
+
+                            // Refresh data
+                            refreshData();
+                            setShowDeleteAdvanceConfirmation(false);
+                            setSelectedAdvanceForDelete(null);
+                          } catch (err) {
+                            console.log(
+                              "Delete advance error",
+                              err?.response?.data || err.message || err
+                            );
+                          } finally {
+                            setDeleteAdvanceLoading(false);
+                          }
+                        }}
+                        disabled={deleteAdvanceLoading}
+                      >
+                        <Text style={styles.deleteConfirmBtnText}>
+                          {deleteAdvanceLoading ? "Deleting..." : "Delete"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </TouchableWithoutFeedback>
               </View>
@@ -545,19 +1187,32 @@ export default function WalletPage() {
             <Text style={styles.loanTitle}>Loan</Text>
             <Text style={styles.loanPending}>Pending amount to pay</Text>
             <Text style={styles.loanAmount}>
-              Rs {loanData ? Number(loanData.amount).toLocaleString() : "0.00"}
+              Rs{" "}
+              {displayLoan
+                ? Number(
+                    displayLoan.remainingAmount || displayLoan.amount || 0
+                  ).toLocaleString()
+                : "0.00"}
             </Text>
             <View style={styles.loanRow}>
               <Text style={styles.loanPending}>Monthly payment</Text>
               <Text style={styles.loanMonthAmount}>
-                Rs {loanData ? (Number(loanData.amount) / (loanData.months || 1)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "0.00"}
+                Rs{" "}
+                {displayLoan
+                  ? Number(
+                      displayLoan.monthlyInstalment ||
+                        displayLoan.amount / (displayLoan.months || 1)
+                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  : "0.00"}
               </Text>
             </View>
             <TouchableOpacity
               style={styles.loanBtn}
               onPress={() => setShowLoanDetails(true)}
             >
-              <Text style={styles.loanBtnText}>{loanData ? 'View' : 'Details'}</Text>
+              <Text style={styles.loanBtnText}>
+                {displayLoan ? "View" : "Details"}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -615,7 +1270,12 @@ export default function WalletPage() {
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Loan Amount:</Text>
                   <Text style={styles.loanPopupValue}>
-                    Rs {loanData ? Number(loanData.amount).toLocaleString() : "-"}
+                    Rs{" "}
+                    {displayLoan
+                      ? Number(
+                          displayLoan.loanAmount || displayLoan.amount
+                        ).toLocaleString()
+                      : "-"}
                   </Text>
                 </View>
                 <View style={styles.loanPopupRow}>
@@ -623,22 +1283,36 @@ export default function WalletPage() {
                     Monthly Installment:
                   </Text>
                   <Text style={styles.loanPopupValue}>
-                    Rs {loanData ? (Number(loanData.amount) / (loanData.months || 1)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
+                    Rs{" "}
+                    {displayLoan
+                      ? Number(
+                          displayLoan.monthlyInstalment ||
+                            displayLoan.amount / (displayLoan.months || 1)
+                        ).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })
+                      : "-"}
                   </Text>
                 </View>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Interest Rate:</Text>
-                  <Text style={styles.loanPopupValue}>{loanData?.interestRate ? `${loanData.interestRate}%` : "-"}</Text>
+                  <Text style={styles.loanPopupValue}>
+                    {displayLoan?.rate ? `${displayLoan.rate}%` : "-"}
+                  </Text>
                 </View>
                 <View style={styles.loanPopupRow}>
                   <Text style={styles.loanPopupLabel}>Amount Payable:</Text>
                   <Text style={styles.loanPopupValue}>
-                    Rs {loanData && loanData.interestRate ? (Number(loanData.amount) * (1 + Number(loanData.interestRate) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
+                    Rs{" "}
+                    {displayLoan && displayLoan.remainingAmount
+                      ? Number(displayLoan.remainingAmount).toLocaleString(
+                          undefined,
+                          {
+                            minimumFractionDigits: 2,
+                          }
+                        )
+                      : "-"}
                   </Text>
-                </View>
-                <View style={styles.loanPopupRow}>
-                  <Text style={styles.loanPopupLabel}>Payment Type:</Text>
-                  <Text style={styles.loanPopupValue}>{loanData?.paymentType || paymentType}</Text>
                 </View>
               </View>
             </TouchableWithoutFeedback>
@@ -1226,5 +1900,81 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+  },
+  loanActionButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 12,
+    gap: 10,
+  },
+  loanActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  editBtn: {
+    backgroundColor: "#165E52",
+  },
+  deleteBtn: {
+    backgroundColor: "#B3292A",
+  },
+  loanActionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  confirmationPopup: {
+    width: 320,
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 24,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    alignItems: "center",
+  },
+  confirmationTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#183d2b",
+    marginBottom: 12,
+  },
+  confirmationMessage: {
+    fontSize: 16,
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  confirmationButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  confirmationBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: "center",
+  },
+  cancelBtn: {
+    backgroundColor: "#ecf3ef",
+  },
+  cancelBtnText: {
+    color: "#165E52",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  deleteConfirmBtn: {
+    backgroundColor: "#B3292A",
+  },
+  deleteConfirmBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
