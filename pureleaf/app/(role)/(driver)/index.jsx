@@ -176,7 +176,7 @@ export default function SupplierHome() {
   useEffect(() => {
     const checkTime = () => {
       const now = new Date();
-      if (now.getHours() >= 0) {
+      if (now.getHours() >= 1) {
         setIsAfterFour(true);
       } else {
         setIsAfterFour(false);

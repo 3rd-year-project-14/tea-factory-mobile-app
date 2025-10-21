@@ -277,23 +277,6 @@ export default function Pickup() {
             </Text>
           </View>
         </View>
-
-        {/* Fertilizer Section */}
-        <View style={styles.fertilizerSection}>
-          <Text style={styles.fertilizerText}>
-            Urea : 50kg {supplier.fertilizer[0].bags} bags{"\n"}
-            Ammonium Sulphate : 50kg {supplier.fertilizer[1].bags} bag
-          </Text>
-          <TouchableOpacity
-            style={[styles.deliverBtn, delivered && styles.deliveredBtn]}
-            onPress={() => setDelivered(true)}
-            disabled={delivered}
-          >
-            <Text style={styles.deliverBtnText}>
-              {delivered ? "Delivered" : "Mark as delivered"}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       <TouchableOpacity style={styles.doneBtn} onPress={handleDone}>
@@ -518,7 +501,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#183d2b",
     borderRadius: 18,
     marginHorizontal: 16,
-    marginBottom: 70,
+    marginBottom: 100,
     paddingVertical: 16,
     alignItems: "center",
     elevation: 2,
